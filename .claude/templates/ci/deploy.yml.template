@@ -1,0 +1,173 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_all:
+        description: "Force deploy all services regardless of changed paths"
+        type: boolean
+        default: false
+        required: false
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  paths-filter:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - '{{backend_dir}}/**'
+              - 'pyproject.toml'
+              - 'poetry.lock'
+              - 'requirements*.txt'
+            frontend:
+              - '{{frontend_dir}}/**'
+
+  deploy-backend:
+    needs: paths-filter
+    if: >
+      needs.paths-filter.outputs.backend == 'true' ||
+      github.event.inputs.force_all == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write  # For OIDC-based cloud auth
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "{{python_version}}"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root --only main
+        working-directory: {{backend_dir}}
+
+      # ── Replace the steps below with your deploy target ──────────────────
+      # Example: Railway
+      # - name: Deploy to Railway
+      #   uses: bervProject/railway-deploy@main
+      #   env:
+      #     RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      #   with:
+      #     service: backend
+
+      # Example: Fly.io
+      # - name: Deploy to Fly.io
+      #   uses: superfly/flyctl-actions/setup-flyctl@master
+      # - run: flyctl deploy --remote-only
+      #   env:
+      #     FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # Example: AWS ECS
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+      #     aws-region: us-east-1
+      # - name: Deploy to ECS
+      #   run: |
+      #     aws ecs update-service \
+      #       --cluster production \
+      #       --service backend \
+      #       --force-new-deployment
+      # ─────────────────────────────────────────────────────────────────────
+
+      - name: Notify deployment success
+        if: success()
+        run: echo "Backend deployed successfully from ${{ github.sha }}"
+
+      - name: Notify deployment failure
+        if: failure()
+        run: echo "Backend deployment FAILED for ${{ github.sha }}"
+
+  deploy-frontend:
+    needs: paths-filter
+    if: >
+      needs.paths-filter.outputs.frontend == 'true' ||
+      github.event.inputs.force_all == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "{{node_version}}"
+          cache: "npm"
+          cache-dependency-path: "{{frontend_dir}}/package-lock.json"
+
+      - name: Install dependencies
+        working-directory: {{frontend_dir}}
+        run: {{npm_install_command}}
+
+      - name: Build
+        working-directory: {{frontend_dir}}
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      # ── Replace the steps below with your deploy target ──────────────────
+      # Example: Vercel
+      # - name: Deploy to Vercel
+      #   uses: amondnet/vercel-action@v25
+      #   with:
+      #     vercel-token: ${{ secrets.VERCEL_TOKEN }}
+      #     vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+      #     vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+      #     vercel-args: "--prod"
+      #     working-directory: {{frontend_dir}}
+
+      # Example: Netlify
+      # - name: Deploy to Netlify
+      #   uses: nwtgck/actions-netlify@v3
+      #   with:
+      #     publish-dir: "{{frontend_dir}}/dist"
+      #     production-branch: main
+      #     deploy-message: "Deploy from GitHub Actions"
+      #   env:
+      #     NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      #     NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+      # Example: AWS S3 + CloudFront
+      # - name: Sync to S3
+      #   run: aws s3 sync {{frontend_dir}}/dist s3://${{ secrets.S3_BUCKET }} --delete
+      # - name: Invalidate CloudFront
+      #   run: |
+      #     aws cloudfront create-invalidation \
+      #       --distribution-id ${{ secrets.CF_DISTRIBUTION_ID }} \
+      #       --paths "/*"
+      # ─────────────────────────────────────────────────────────────────────
+
+      - name: Notify deployment success
+        if: success()
+        run: echo "Frontend deployed successfully from ${{ github.sha }}"
+
+      - name: Notify deployment failure
+        if: failure()
+        run: echo "Frontend deployment FAILED for ${{ github.sha }}"

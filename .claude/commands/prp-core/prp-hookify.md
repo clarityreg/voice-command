@@ -1,0 +1,333 @@
+---
+description: Convert deterministic CLAUDE.md rules into enforced hooks
+argument-hint:
+---
+
+# Hookify — Convert CLAUDE.md Rules into Deterministic Hooks
+
+Scan the project's CLAUDE.md for deterministic, binary rules and generate Python hook scripts that enforce them mechanically — removing reliance on LLM memory for things that can be checked by code.
+
+---
+
+## Definition of "Deterministic"
+
+A rule is hookifiable ONLY if a script can evaluate it with **zero interpretation**:
+- Branch name == "main" → block (**deterministic**)
+- File has > 500 lines → warn (**deterministic**)
+- "Write clean code" → NOT hookifiable (subjective)
+- "Consider security" → NOT hookifiable (requires judgment)
+
+If you're unsure whether a rule is deterministic, **skip it**.
+
+---
+
+## Supported Categories (6 only)
+
+| Category | Example Rule | Hook Event | Action |
+|----------|-------------|------------|--------|
+| `branch_protection` | "Never commit to main/master" | PreToolUse (Bash, Edit, Write) | Block |
+| `file_size_limit` | "Python files < 500 lines" | PostToolUse (Write, Edit) | Warn |
+| `forbidden_pattern` | "No console.log in production", "No eval()" | PostToolUse (Write, Edit) | Block/Warn |
+| `required_file` | "Every module needs __init__.py" | PostToolUse (Write) | Warn |
+| `naming_convention` | "Branches must be feature/*, fix/*" | PreToolUse (Bash) | Block |
+| `auto_format` | "Format Python with black on save" | PostToolUse (Write, Edit) | Auto-fix |
+
+Anything outside these 6 categories MUST be skipped with a clear explanation of why.
+
+---
+
+## Phase 1: SCAN
+
+Read the project's `CLAUDE.md` file from the repository root.
+
+Extract every sentence or bullet point that expresses a rule. For each, determine:
+1. Is it deterministic? (Can a script check it with zero judgment?)
+2. Which category does it fit?
+3. What are the concrete parameters? (branch names, line limits, patterns, file names, format commands)
+
+Build a list of candidate rules. Skip and note any that are:
+- Subjective ("write clean code", "keep it simple")
+- Require understanding code semantics ("ensure proper error handling")
+- Already covered by linters/formatters configured in pre-commit
+
+---
+
+## Phase 2: CLASSIFY
+
+For each candidate rule, produce a record:
+
+```
+Rule: "<original text from CLAUDE.md>"
+Category: branch_protection | file_size_limit | forbidden_pattern | required_file | naming_convention | auto_format
+Hook Event: PreToolUse | PostToolUse
+Matcher: "Bash" | "Edit|MultiEdit|Write" | ""
+Action: block | warn | auto-fix
+Parameters: { ... category-specific config ... }
+```
+
+---
+
+## Phase 3: DIFF against existing hooks
+
+Read `.claude/settings.json` and scan for existing hooks. Also check `.claude/hooks/generated/` for previously generated hookify scripts.
+
+For each candidate rule, determine:
+- **Already hooked** — An existing hook in `settings.json` already enforces this rule (e.g., `branch_guard.py` covers branch protection). Mark as "EXISTING".
+- **Previously generated** — A file in `.claude/hooks/generated/` already covers this. Mark as "UPDATE" if the rule changed, "EXISTING" if identical.
+- **New** — No existing hook covers this. Mark as "NEW".
+
+---
+
+## Phase 4: PRESENT
+
+Show the user a table of ALL rules found (including skipped ones):
+
+```
+/prp-hookify — Rule Analysis
+═══════════════════════════════════════════════════════════════
+
+Deterministic Rules Found:
+┌───┬────────────────────────────────────┬───────────────────┬──────────┬──────────┐
+│ # │ Rule                               │ Category          │ Action   │ Status   │
+├───┼────────────────────────────────────┼───────────────────┼──────────┼──────────┤
+│ 1 │ Never commit to main/master        │ branch_protection │ block    │ EXISTING │
+│ 2 │ Python files < 500 lines           │ file_size_limit   │ warn     │ NEW      │
+│ 3 │ No eval() in Python                │ forbidden_pattern │ block    │ NEW      │
+│ 4 │ Branches must be feature/*, fix/*  │ naming_convention │ block    │ EXISTING │
+└───┴────────────────────────────────────┴───────────────────┴──────────┴──────────┘
+
+Skipped (non-deterministic):
+  - "Validation Always — Run checks after every change" → requires judgment
+  - "Document Everything" → subjective, no binary check
+  - "Tests Required — No task complete without passing tests" → context-dependent
+
+Proceed with generating hooks for NEW rules? (list the rule numbers)
+```
+
+Wait for user confirmation before generating. The user may choose to skip some rules.
+
+---
+
+## Phase 5: GENERATE
+
+For each approved NEW rule, create a Python hook script in `.claude/hooks/generated/`.
+
+### Naming convention
+
+```
+hookify_{category}_{slug}.py
+```
+
+Where `{slug}` is a lowercase, underscore-separated summary (max 30 chars).
+Examples:
+- `hookify_forbidden_pattern_no_eval.py`
+- `hookify_file_size_limit_python_500.py`
+- `hookify_required_file_init_py.py`
+
+### Template
+
+Every generated hook MUST follow this exact structure:
+
+```python
+#!/usr/bin/env python3
+"""
+GENERATED BY prp-hookify — do not edit manually.
+Source rule: "<original rule text from CLAUDE.md>"
+Category: <category>
+Re-run /prp-hookify to regenerate.
+"""
+import json
+import sys
+
+def main():
+    data = json.load(sys.stdin)
+
+    # --- Category-specific check logic here ---
+
+    # If check fails:
+    # print(json.dumps({
+    #     "decision": "block",  # or omit for warn-only
+    #     "reason": "⛔ HOOKIFY: <explanation>"
+    # }))
+
+    sys.exit(0)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        sys.exit(0)  # Never crash Claude
+```
+
+### Category-specific logic
+
+**branch_protection** (PreToolUse, matcher: "Bash|Edit|MultiEdit|Write"):
+```python
+# Check current git branch against protected list
+import subprocess
+result = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                       capture_output=True, text=True, timeout=5)
+branch = result.stdout.strip()
+if branch in PROTECTED_BRANCHES:
+    # block
+```
+
+**file_size_limit** (PostToolUse, matcher: "Write|Edit|MultiEdit"):
+```python
+# Check the file that was just written/edited
+file_path = data.get("tool_input", {}).get("file_path", "")
+if file_path.endswith(EXTENSION):
+    try:
+        with open(file_path) as f:
+            line_count = sum(1 for _ in f)
+        if line_count > MAX_LINES:
+            # warn (use "decision": "block" only if the rule says to block)
+            print(json.dumps({"reason": f"⚠️ HOOKIFY: {file_path} has {line_count} lines (limit: {MAX_LINES})"}))
+    except OSError:
+        pass
+```
+
+**forbidden_pattern** (PostToolUse, matcher: "Write|Edit|MultiEdit"):
+```python
+# Check file contents for forbidden patterns
+import re
+file_path = data.get("tool_input", {}).get("file_path", "")
+if file_path.endswith(tuple(EXTENSIONS)):
+    try:
+        with open(file_path) as f:
+            content = f.read()
+        for pattern, description in FORBIDDEN_PATTERNS:
+            if re.search(pattern, content):
+                # block or warn
+    except OSError:
+        pass
+```
+
+**required_file** (PostToolUse, matcher: "Write"):
+```python
+# When a new file is created, check if a companion file should exist
+import os
+file_path = data.get("tool_input", {}).get("file_path", "")
+# Example: if creating a Python module file, check for __init__.py in the same dir
+directory = os.path.dirname(file_path)
+required = os.path.join(directory, REQUIRED_FILENAME)
+if not os.path.exists(required):
+    # warn
+```
+
+**naming_convention** (PreToolUse, matcher: "Bash"):
+```python
+# Check branch creation commands against naming pattern
+import re
+command = data.get("tool_input", {}).get("command", "")
+match = re.search(r"git\s+(?:checkout\s+-b|switch\s+-c)\s+([\w/._-]+)", command)
+if match:
+    branch_name = match.group(1)
+    if not VALID_PATTERN.match(branch_name):
+        # block
+```
+
+**auto_format** (PostToolUse, matcher: "Write|Edit|MultiEdit"):
+```python
+# Run formatter on the file that was just written
+import subprocess
+file_path = data.get("tool_input", {}).get("file_path", "")
+if file_path.endswith(tuple(EXTENSIONS)):
+    try:
+        subprocess.run(FORMAT_COMMAND + [file_path], capture_output=True, timeout=30)
+    except Exception:
+        pass  # formatting is best-effort
+```
+
+### Constraints on generated hooks
+
+- **Self-contained**: No imports beyond Python stdlib
+- **Always exit 0**: Wrap main() in try/except that exits 0
+- **Include header**: `# GENERATED BY prp-hookify` docstring with source rule
+- **No network calls**: Hooks must work offline
+- **Fast**: Timeout should be ≤ 10 seconds
+
+---
+
+## Phase 6: WIRE
+
+For each generated hook, add an entry to `.claude/settings.json` under the correct event type and matcher.
+
+Read the current `settings.json`, parse it, and add entries. Follow the existing pattern:
+
+```json
+{
+  "type": "command",
+  "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/generated/hookify_forbidden_pattern_no_eval.py",
+  "timeout": 10
+}
+```
+
+### Placement rules
+
+- **PreToolUse** hooks: Add to the appropriate matcher group (`"Bash"` or `"Edit|MultiEdit|Write"`)
+- **PostToolUse** hooks: Add a new matcher group `"Write|Edit|MultiEdit"` if one doesn't exist, or append to existing
+- Never duplicate — if the exact command path already exists in settings.json, skip it
+- Place generated hooks AFTER hand-written hooks within the same matcher group (hand-written hooks take priority)
+
+### Idempotency
+
+If re-running `/prp-hookify`:
+1. Overwrite existing files in `.claude/hooks/generated/` (the Python scripts themselves)
+2. Do NOT add duplicate entries to `settings.json` — check by command path
+3. Remove `settings.json` entries for hooks whose generated files no longer exist
+
+---
+
+## Phase 7: VERIFY
+
+Run validation to confirm nothing is broken:
+
+```bash
+python3 -c "import json; json.load(open('.claude/settings.json'))"
+```
+
+If this fails, the settings.json edit was malformed. Fix it immediately.
+
+Then test each generated hook with a dry-run:
+
+```bash
+echo '{"tool_name": "Write", "tool_input": {"file_path": "/tmp/test.py", "content": "test"}}' | python3 .claude/hooks/generated/<hook>.py
+```
+
+Report results:
+
+```
+Verification
+═══════════════════════════════════════════════════
+
+  PASS  settings.json is valid JSON
+  PASS  hookify_forbidden_pattern_no_eval.py accepts stdin JSON
+  PASS  hookify_file_size_limit_python_500.py accepts stdin JSON
+  PASS  2 hooks wired into settings.json
+
+Generated hooks: .claude/hooks/generated/
+```
+
+---
+
+## Summary Output
+
+End with a concise summary:
+
+```
+/prp-hookify complete
+═════════════════════
+
+  Rules scanned:     12
+  Deterministic:      5
+  Already hooked:     2
+  Newly generated:    2
+  Skipped (soft):     7
+
+  Generated files:
+    .claude/hooks/generated/hookify_forbidden_pattern_no_eval.py
+    .claude/hooks/generated/hookify_file_size_limit_python_500.py
+
+  Re-run /prp-hookify any time to sync hooks with CLAUDE.md changes.
+```

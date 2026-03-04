@@ -1,0 +1,160 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  paths-filter:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - '{{backend_dir}}/**'
+              - 'pyproject.toml'
+              - 'poetry.lock'
+              - 'requirements*.txt'
+            frontend:
+              - '{{frontend_dir}}/**'
+
+  backend:
+    needs: paths-filter
+    if: needs.paths-filter.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: {{backend_dir}}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "{{python_version}}"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: {{backend_dir}}/.venv
+          key: venv-${{ runner.os }}-py{{python_version}}-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py{{python_version}}-
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+
+      - name: Lint with ruff
+        run: poetry run ruff check .
+
+      - name: Check formatting with ruff
+        run: poetry run ruff format --check .
+
+      - name: Type check with mypy
+        run: poetry run mypy . --ignore-missing-imports
+        continue-on-error: true
+
+      - name: Run tests with coverage
+        run: |
+          poetry run pytest \
+            --cov=. \
+            --cov-report=xml \
+            --cov-report=term-missing:skip-covered \
+            --cov-fail-under={{coverage_overall}} \
+            -v
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: {{backend_dir}}/coverage.xml
+          retention-days: 7
+
+  frontend:
+    needs: paths-filter
+    if: needs.paths-filter.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: {{frontend_dir}}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "{{node_version}}"
+          cache: "npm"
+          cache-dependency-path: "{{frontend_dir}}/package-lock.json"
+
+      - name: Install dependencies
+        run: {{npm_install_command}}
+
+      - name: Lint with ESLint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Run tests with coverage
+        run: npm run test -- --coverage --run
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-coverage
+          path: {{frontend_dir}}/coverage/
+          retention-days: 7
+
+  ci-pass:
+    needs: [backend, frontend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check CI results
+        run: |
+          backend_result="${{ needs.backend.result }}"
+          frontend_result="${{ needs.frontend.result }}"
+
+          echo "Backend result: $backend_result"
+          echo "Frontend result: $frontend_result"
+
+          # A job that was skipped (paths not changed) counts as passing
+          if [[ "$backend_result" == "failure" || "$backend_result" == "cancelled" ]]; then
+            echo "Backend CI failed"
+            exit 1
+          fi
+
+          if [[ "$frontend_result" == "failure" || "$frontend_result" == "cancelled" ]]; then
+            echo "Frontend CI failed"
+            exit 1
+          fi
+
+          echo "All CI checks passed (or were skipped due to no relevant changes)"

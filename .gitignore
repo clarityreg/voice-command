@@ -1,0 +1,64 @@
+
+
+
+
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+bun.lockb
+
+# Tauri
+src-tauri/target/
+
+# Python backend
+backend/.venv/
+backend/clarity.db
+backend/clarity.db-wal
+backend/clarity.db-shm
+backend/.pytest_cache/
+
+# Environment
+.env
+.env.local
+prp-secrets.env
+
+# Backup files
+*.bak.*
+
+# Coverage
+coverage/
+
+# <!-- PRP-GITIGNORE-START -->
+# PRP secrets (API keys — never commit)
+.claude/prp-secrets.env
+
+# PRP Framework — runtime outputs (do not commit)
+__pycache__/
+*.pyc
+*.pyo
+.coverage
+.coverage.*
+coverage.json
+htmlcov/
+.claude/hooks/*.jsonl
+.claude/hooks/generated/*
+!.claude/hooks/generated/.gitkeep
+.claude/PRPs/coverage/
+.claude/PRPs/branches/
+.claude/PRPs/doctor/
+.claude/PRPs/transcript-analysis/
+.claude/PRPs/qa/
+.claude/transcripts/
+*.jsonl
+security-reports/
+e2e-screenshots/
+e2e-test-report.md
+apps/server/events.db*
+apps/server/node_modules/
+apps/client/node_modules/
+apps/client/dist/
+.claude/hooks/observability/logs/
+.claude/install.log
+# <!-- PRP-GITIGNORE-END -->

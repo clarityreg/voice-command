@@ -1,0 +1,60 @@
+@import "tailwindcss";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+
+@theme {
+  /* Background */
+  --color-cream: #F5F0E8;
+  --color-cream-dark: #EDE7DB;
+  --color-cream-light: #FAF8F4;
+
+  /* Text */
+  --color-bark: #2C2416;
+  --color-bark-muted: #6B5D4F;
+  --color-bark-light: #9C8E7E;
+
+  /* Severity (soft pastels) */
+  --color-sev-critical: #F4A4B8;
+  --color-sev-high: #F6C87A;
+  --color-sev-medium: #E8D77A;
+  --color-sev-low: #A8D5A2;
+
+  /* Accents */
+  --color-accent: #7C6EE0;
+  --color-nav-bg: #2C2416;
+
+  /* Cards */
+  --color-card-bg: #FFFFFF;
+  --shadow-card: 0 2px 12px rgba(44, 36, 22, 0.08);
+
+  /* Source badges */
+  --color-source-posthog: #93B5E8;
+  --color-source-aikido: #C4A2E0;
+
+  /* Status */
+  --color-status-pending: #E8D77A;
+  --color-status-snoozed: #93B5E8;
+  --color-status-dismissed: #9C8E7E;
+  --color-status-actioned: #A8D5A2;
+
+  /* Ring segments */
+  --color-ring-green: #A8D5A2;
+  --color-ring-yellow: #E8D77A;
+  --color-ring-pink: #F4A4B8;
+  --color-ring-blue: #93B5E8;
+  --color-ring-olive: #B8C98A;
+
+  /* Custom radii */
+  --radius-card: 1rem;
+  --radius-pill: 9999px;
+  --radius-nav: 1.25rem;
+
+  /* Font */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+}

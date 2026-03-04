@@ -1,0 +1,303 @@
+# PRP Framework - Pre-commit Configuration
+# Install: pip install pre-commit && pre-commit install
+# Skip hooks: SKIP=coderabbit-review,trivy-scan git commit -m "msg"
+# Skip all:   git commit --no-verify -m "emergency fix"
+
+exclude: ^(\.claude/|archive/)
+
+repos:
+  # ──────────────────────────────────────────────
+  # Python: Lint + Format (Ruff)
+  # ──────────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.10
+    hooks:
+      - id: ruff
+        name: ruff (lint + autofix)
+        args: [--fix]
+        files: ^(backend|tests)/
+      - id: ruff-format
+        name: ruff (format)
+        files: ^(backend|tests)/
+
+  # ──────────────────────────────────────────────
+  # Python: Dead Code Detection (Vulture)
+  # ──────────────────────────────────────────────
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.14
+    hooks:
+      - id: vulture
+        name: vulture (dead code)
+        args: [backend/, --min-confidence=100]
+        files: ^backend/
+        pass_filenames: false
+
+  # ──────────────────────────────────────────────
+  # Python: Security Linter (Bandit)
+  # Config in pyproject.toml under [tool.bandit]
+  # ──────────────────────────────────────────────
+  - repo: https://github.com/PyCQA/bandit
+    rev: "1.7.7"
+    hooks:
+      - id: bandit
+        name: bandit (security)
+        args: [-c, pyproject.toml, -r, backend/]
+        files: ^backend/
+        pass_filenames: false
+        additional_dependencies: ["bandit[toml]"]
+
+  # ──────────────────────────────────────────────
+  # Python: Static Type Checking (MyPy) — DISABLED
+  # Requires full project venv for django-stubs.
+  # Run manually: poetry run mypy backend/
+  # ──────────────────────────────────────────────
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.8.0
+  #   hooks:
+  #     - id: mypy
+  #       name: mypy (backend via poetry)
+  #       entry: poetry run mypy
+  #       language: system
+  #       files: ^backend/
+  #       types: [python]
+
+  # ──────────────────────────────────────────────
+  # Frontend: ESLint (TypeScript/React)
+  # ──────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: eslint-frontend
+        name: eslint (frontend)
+        entry: scripts/lint-frontend.sh
+        language: script
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: true
+
+  # ──────────────────────────────────────────────
+  # Python: File Size Enforcement (500 lines max)
+  # ──────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: python-file-size
+        name: python file size check (< 500 lines)
+        entry: scripts/check-file-size.sh
+        language: script
+        files: ^backend/.*\.py$
+        exclude: ^backend/(tests|.*/migrations)/
+        pass_filenames: true
+
+  # ──────────────────────────────────────────────
+  # Secrets Detection (Yelp/detect-secrets)
+  # Baseline: .secrets.baseline
+  # ──────────────────────────────────────────────
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: \.lock$|\.min\.js$|^archive/
+
+  # ──────────────────────────────────────────────
+  # Trivy: Vulnerability + Secret Scanning
+  # ──────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: trivy-scan
+        name: trivy (security scan)
+        entry: scripts/trivy-precommit.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
+  # ──────────────────────────────────────────────
+  # QA Gate Check (Tests must pass)
+  # ──────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: qa-gate-check
+        name: qa gate check (tests must pass)
+        entry: scripts/qa-gate-check.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
+  # ──────────────────────────────────────────────
+  # CodeRabbit: AI Code Review
+  # ──────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: coderabbit-review
+        name: coderabbit (AI review)
+        entry: coderabbit review --plain --type uncommitted
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+  # ──────────────────────────────────────────────
+  # General Hygiene (pre-commit-hooks)
+  # ──────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+        exclude: \.icns$
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+
+
+
+
+  # <!-- PRP-HOOKS-START -->
+  # ──────────────────────────────────────────────
+  # Python: Lint + Format (Ruff)
+  # ──────────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.10
+    hooks:
+      - id: ruff
+        name: ruff (lint + autofix)
+        args: [--fix]
+        files: ^(backend|tests)/
+      - id: ruff-format
+        name: ruff (format)
+        files: ^(backend|tests)/
+
+  # ──────────────────────────────────────────────
+  # Python: Dead Code Detection (Vulture)
+  # ──────────────────────────────────────────────
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.14
+    hooks:
+      - id: vulture
+        name: vulture (dead code)
+        args: [backend/, --min-confidence=100]
+        files: ^backend/
+        pass_filenames: false
+
+  # ──────────────────────────────────────────────
+  # Python: Security Linter (Bandit)
+  # Config in pyproject.toml under [tool.bandit]
+  # ──────────────────────────────────────────────
+  - repo: https://github.com/PyCQA/bandit
+    rev: "1.7.7"
+    hooks:
+      - id: bandit
+        name: bandit (security)
+        args: [-c, pyproject.toml, -r, backend/]
+        files: ^backend/
+        pass_filenames: false
+        additional_dependencies: ["bandit[toml]"]
+
+  # ──────────────────────────────────────────────
+  # Python: Static Type Checking (MyPy) — DISABLED
+  # Requires full project venv for django-stubs.
+  # Run manually: poetry run mypy backend/
+  # ──────────────────────────────────────────────
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.8.0
+  #   hooks:
+  #     - id: mypy
+  #       name: mypy (backend via poetry)
+  #       entry: poetry run mypy
+  #       language: system
+  #       files: ^backend/
+  #       types: [python]
+
+  # ──────────────────────────────────────────────
+  # Frontend: ESLint (TypeScript/React)
+  # ──────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: eslint-frontend
+        name: eslint (frontend)
+        entry: scripts/lint-frontend.sh
+        language: script
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: true
+
+  # ──────────────────────────────────────────────
+  # Python: File Size Enforcement (500 lines max)
+  # ──────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: python-file-size
+        name: python file size check (< 500 lines)
+        entry: scripts/check-file-size.sh
+        language: script
+        files: ^backend/.*\.py$
+        exclude: ^backend/(tests|.*/migrations)/
+        pass_filenames: true
+
+  # ──────────────────────────────────────────────
+  # Secrets Detection (Yelp/detect-secrets)
+  # Baseline: .secrets.baseline
+  # ──────────────────────────────────────────────
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: \.lock$|\.min\.js$|^archive/
+
+  # ──────────────────────────────────────────────
+  # Trivy: Vulnerability + Secret Scanning
+  # ──────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: trivy-scan
+        name: trivy (security scan)
+        entry: scripts/trivy-precommit.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
+  # ──────────────────────────────────────────────
+  # QA Gate Check (Tests must pass)
+  # ──────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: qa-gate-check
+        name: qa gate check (tests must pass)
+        entry: scripts/qa-gate-check.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
+  # ──────────────────────────────────────────────
+  # CodeRabbit: AI Code Review
+  # ──────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: coderabbit-review
+        name: coderabbit (AI review)
+        entry: coderabbit review --plain --type uncommitted
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+  # ──────────────────────────────────────────────
+  # General Hygiene (pre-commit-hooks)
+  # ──────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+        exclude: \.icns$
+      - id: check-merge-conflict
+      - id: detect-private-key
+  # <!-- PRP-HOOKS-END -->

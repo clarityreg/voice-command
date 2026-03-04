@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Branch Visualization</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --orange: #d29922;
+      --purple: #bc8cff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+
+    h1 { font-size: 1.4rem; font-weight: 600; color: var(--text); }
+    .meta { color: var(--text-muted); font-size: 0.8rem; }
+
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── SVG Graph ──────────────────────────────────────────── */
+    .graph-container {
+      padding: 24px 16px;
+      overflow-x: auto;
+      position: relative;
+    }
+
+    .graph-container svg text {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    }
+
+    /* Commit dot hover */
+    .commit-dot {
+      cursor: pointer;
+      transition: r 0.15s ease;
+    }
+    .commit-dot:hover {
+      filter: brightness(1.3);
+    }
+
+    /* ── Popover ───────────────────────────────────────────── */
+    .popover {
+      display: none;
+      position: absolute;
+      z-index: 100;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      min-width: 280px;
+      max-width: 380px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    .popover.visible { display: block; }
+    .popover .pop-hash {
+      color: var(--accent);
+      font-family: monospace;
+      font-size: 0.82rem;
+      text-decoration: none;
+    }
+    .popover .pop-hash:hover { text-decoration: underline; }
+    .popover .pop-message {
+      color: var(--text);
+      margin: 6px 0;
+      word-wrap: break-word;
+    }
+    .popover .pop-meta {
+      color: var(--text-muted);
+      font-size: 0.78rem;
+    }
+    .popover .pop-badge {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Branch Table ──────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    th {
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .branch-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-family: monospace;
+      font-size: 0.85rem;
+    }
+    .branch-link:hover { text-decoration: underline; }
+
+    .main-tag {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 6px;
+      background: rgba(63, 185, 80, 0.15);
+      border: 1px solid rgba(63, 185, 80, 0.4);
+      border-radius: 20px;
+      font-size: 0.7rem;
+      color: var(--green);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .badge-none   { background: rgba(139,148,158,0.15); color: var(--text-muted); }
+    .badge-open   { background: rgba(63,185,80,0.15);  color: var(--green);  border: 1px solid rgba(63,185,80,0.3); }
+    .badge-merged { background: rgba(188,140,255,0.15); color: var(--purple); border: 1px solid rgba(188,140,255,0.3); }
+    .badge-closed { background: rgba(248,81,73,0.15);  color: var(--red);    border: 1px solid rgba(248,81,73,0.3); }
+    .badge-draft  { background: rgba(210,153,34,0.15); color: var(--orange); border: 1px solid rgba(210,153,34,0.3); }
+    a .badge { text-decoration: none; }
+
+    .ab-green   { color: var(--green); font-family: monospace; font-size: 0.82rem; }
+    .ab-red     { color: var(--red);   font-family: monospace; font-size: 0.82rem; }
+    .ab-neutral { color: var(--text-muted); font-family: monospace; font-size: 0.82rem; }
+
+    .commit-msg {
+      color: var(--text);
+      max-width: 280px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 0.82rem;
+    }
+
+    .commit-meta {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-family: monospace;
+      white-space: nowrap;
+    }
+
+    .plane-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .plane-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .plane-btn.copied {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface);
+      border: 1px solid var(--green);
+      color: var(--green);
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.2s;
+      pointer-events: none;
+      z-index: 200;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Branch Visualization</h1>
+    <span class="meta" id="header-meta"></span>
+  </header>
+
+  <!-- SVG git graph -->
+  <div class="section">
+    <div class="section-header">Git Graph</div>
+    <div class="graph-container" id="graph-container">
+      <svg id="graph-svg"></svg>
+      <div class="popover" id="popover"></div>
+    </div>
+  </div>
+
+  <!-- Branch table -->
+  <div class="section">
+    <div class="section-header">Branches</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Branch</th>
+          <th>PR Status</th>
+          <th>+Ahead / -Behind</th>
+          <th>Last Commit</th>
+          <th>Hash &middot; When</th>
+          <th>Plane</th>
+        </tr>
+      </thead>
+      <tbody id="branch-table-body"></tbody>
+    </table>
+  </div>
+
+  <div class="toast" id="toast">Copied to clipboard!</div>
+
+<script>
+// ── Data injected by Python ──────────────────────────────────────────────────
+const DATA = {{GRAPH_DATA}};
+
+// ── Color palette ────────────────────────────────────────────────────────────
+const BRANCH_COLORS = {
+  main:    '#58a6ff',
+  feature: '#3fb950',
+  fix:     '#d29922',
+  hotfix:  '#f85149',
+  release: '#bc8cff',
+  default: '#8b949e',
+};
+
+function branchColor(name, isMain) {
+  if (isMain) return BRANCH_COLORS.main;
+  if (name.startsWith('feature/')) return BRANCH_COLORS.feature;
+  if (name.startsWith('fix/') || name.startsWith('bugfix/')) return BRANCH_COLORS.fix;
+  if (name.startsWith('hotfix/')) return BRANCH_COLORS.hotfix;
+  if (name.startsWith('release/')) return BRANCH_COLORS.release;
+  return BRANCH_COLORS.default;
+}
+
+// ── Header ───────────────────────────────────────────────────────────────────
+document.getElementById('header-meta').textContent =
+  `Generated ${DATA.generatedAt} \u00b7 ${DATA.branches.length} branches`;
+
+// ── SVG Graph Builder ────────────────────────────────────────────────────────
+(function buildGraph() {
+  const svg = document.getElementById('graph-svg');
+  const container = document.getElementById('graph-container');
+  const popover = document.getElementById('popover');
+
+  const LANE_HEIGHT = 80;
+  const LEFT_MARGIN = 220;
+  const RIGHT_MARGIN = 40;
+  const DOT_RADIUS = 7;
+  const COMMIT_SPACING = 90;
+
+  // Sort: main first, then alphabetical
+  const branches = DATA.branches.slice().sort((a, b) => {
+    if (a.isMain) return -1;
+    if (b.isMain) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  // Build a global timeline: collect all commit dates and sort
+  const allCommits = [];
+  branches.forEach((br, laneIdx) => {
+    (br.commits || []).forEach(c => {
+      allCommits.push({ ...c, branch: br.name, isMain: br.isMain, laneIdx });
+    });
+  });
+  // Sort by date ascending (oldest first)
+  allCommits.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  // Assign x-position based on timeline order
+  const commitPositions = {};
+  allCommits.forEach((c, i) => {
+    const x = LEFT_MARGIN + i * COMMIT_SPACING;
+    commitPositions[c.hash] = { x, laneIdx: c.laneIdx };
+  });
+
+  const totalWidth = LEFT_MARGIN + allCommits.length * COMMIT_SPACING + RIGHT_MARGIN;
+  const totalHeight = branches.length * LANE_HEIGHT + 20;
+
+  svg.setAttribute('width', totalWidth);
+  svg.setAttribute('height', totalHeight);
+  svg.setAttribute('viewBox', `0 0 ${totalWidth} ${totalHeight}`);
+
+  // Helper to create SVG elements
+  function svgEl(tag, attrs) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    return el;
+  }
+
+  // Draw branch lanes
+  branches.forEach((br, idx) => {
+    const y = idx * LANE_HEIGHT + LANE_HEIGHT / 2 + 10;
+    const color = branchColor(br.name, br.isMain);
+    const branchCommits = (br.commits || [])
+      .filter(c => commitPositions[c.hash])
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    if (branchCommits.length === 0) return;
+
+    const firstX = commitPositions[branchCommits[0].hash].x;
+    const lastX = commitPositions[branchCommits[branchCommits.length - 1].hash].x;
+
+    // Lane line
+    svg.appendChild(svgEl('line', {
+      x1: firstX, y1: y, x2: lastX, y2: y,
+      stroke: color, 'stroke-width': 3, 'stroke-opacity': 0.5,
+    }));
+
+    // Branch label (left side)
+    const labelGroup = svgEl('g', {});
+
+    const nameText = svgEl('text', {
+      x: 12, y: y - 6,
+      fill: color, 'font-size': '13px', 'font-weight': '600',
+    });
+    // Truncate long names
+    const displayName = br.name.length > 28 ? br.name.slice(0, 26) + '\u2026' : br.name;
+    nameText.textContent = displayName;
+    labelGroup.appendChild(nameText);
+
+    // Subtitle: branch type
+    let subtitle = '';
+    if (br.isMain) subtitle = 'Main branch';
+    else if (br.name.startsWith('feature/')) subtitle = 'Feature branch';
+    else if (br.name.startsWith('fix/') || br.name.startsWith('bugfix/')) subtitle = 'Bug fix';
+    else if (br.name.startsWith('hotfix/')) subtitle = 'Hotfix';
+    else if (br.name.startsWith('release/')) subtitle = 'Release';
+    else subtitle = 'Branch';
+
+    const subText = svgEl('text', {
+      x: 12, y: y + 10,
+      fill: '#8b949e', 'font-size': '10px',
+    });
+    subText.textContent = subtitle;
+    labelGroup.appendChild(subText);
+    svg.appendChild(labelGroup);
+
+    // Commit dots
+    branchCommits.forEach(c => {
+      const cx = commitPositions[c.hash].x;
+
+      const dot = svgEl('circle', {
+        cx, cy: y, r: DOT_RADIUS,
+        fill: color, class: 'commit-dot',
+      });
+
+      // Tooltip on hover
+      const title = svgEl('title', {});
+      title.textContent = c.hash.slice(0, 7);
+      dot.appendChild(title);
+
+      // Click handler
+      dot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showPopover(c, br, cx, y, container);
+      });
+
+      svg.appendChild(dot);
+
+      // Hash label below dot
+      const hashLabel = svgEl('text', {
+        x: cx, y: y + DOT_RADIUS + 14,
+        fill: '#8b949e', 'font-size': '10px', 'text-anchor': 'middle',
+      });
+      hashLabel.textContent = c.hash.slice(0, 7);
+      svg.appendChild(hashLabel);
+    });
+  });
+
+  // Draw fork connectors
+  (DATA.forkPoints || []).forEach(fp => {
+    const parentPos = commitPositions[fp.fromCommit];
+    if (!parentPos) return;
+
+    // Find the child branch's first commit
+    const childBranch = branches.find(b => b.name === fp.branch);
+    if (!childBranch || !childBranch.commits || childBranch.commits.length === 0) return;
+
+    const childCommits = childBranch.commits
+      .filter(c => commitPositions[c.hash])
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    if (childCommits.length === 0) return;
+
+    const childPos = commitPositions[childCommits[0].hash];
+    const parentLane = parentPos.laneIdx;
+    const childLane = childPos.laneIdx;
+
+    const x1 = parentPos.x;
+    const y1 = parentLane * LANE_HEIGHT + LANE_HEIGHT / 2 + 10;
+    const x2 = childPos.x;
+    const y2 = childLane * LANE_HEIGHT + LANE_HEIGHT / 2 + 10;
+
+    // Curved connector path
+    const midX = (x1 + x2) / 2;
+    const path = svgEl('path', {
+      d: `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`,
+      stroke: '#30363d', 'stroke-width': 2, fill: 'none',
+      'stroke-dasharray': '6,4', 'stroke-opacity': 0.7,
+    });
+    svg.appendChild(path);
+
+    // Small circle at fork point on parent
+    svg.appendChild(svgEl('circle', {
+      cx: x1, cy: y1, r: 3,
+      fill: '#30363d',
+    }));
+  });
+
+  // Popover logic
+  function showPopover(commit, branch, cx, cy, container) {
+    const pr = DATA.prs[branch.name];
+    let prHtml = '';
+    if (pr) {
+      const stateClass = pr.draft ? 'badge-draft' :
+        pr.state === 'OPEN' ? 'badge-open' :
+        pr.state === 'MERGED' ? 'badge-merged' :
+        pr.state === 'CLOSED' ? 'badge-closed' : 'badge-none';
+      const label = pr.draft ? `Draft #${pr.number}` : `${pr.state} #${pr.number}`;
+      prHtml = `<div class="pop-badge">
+        <a href="${pr.url}" target="_blank"><span class="badge ${stateClass}">${label}</span></a>
+        <span style="color: var(--text-muted); font-size: 0.78rem; margin-left: 6px;">${escHtml(pr.title || '')}</span>
+      </div>`;
+    }
+
+    const commitUrl = DATA.githubBase ? `${DATA.githubBase}/commit/${commit.hash}` : '';
+    const hashLink = commitUrl
+      ? `<a class="pop-hash" href="${commitUrl}" target="_blank">${commit.hash.slice(0, 7)}</a>`
+      : `<span class="pop-hash">${commit.hash.slice(0, 7)}</span>`;
+
+    popover.innerHTML = `
+      ${hashLink}
+      <div class="pop-message">${escHtml(commit.message)}</div>
+      <div class="pop-meta">${escHtml(commit.author)} &middot; ${escHtml(commit.relativeDate || commit.date)}</div>
+      ${prHtml}
+    `;
+
+    // Position popover near the dot
+    const containerRect = container.getBoundingClientRect();
+    const scrollLeft = container.scrollLeft;
+    let left = cx - scrollLeft + 16;
+    let top = cy - 10;
+
+    // Keep within viewport
+    if (left + 320 > containerRect.width) left = cx - scrollLeft - 300;
+    if (left < 0) left = 10;
+
+    popover.style.left = left + 'px';
+    popover.style.top = top + 'px';
+    popover.classList.add('visible');
+  }
+
+  // Dismiss popover on click outside
+  document.addEventListener('click', () => {
+    popover.classList.remove('visible');
+  });
+})();
+
+// ── Branch Table Builder ─────────────────────────────────────────────────────
+(function buildTable() {
+  const tbody = document.getElementById('branch-table-body');
+  const githubBase = DATA.githubBase || '';
+  const plane = DATA.plane || {};
+  const hasPlane = !!(plane.workspace_slug && plane.project_id);
+
+  // Sort: main first, then alphabetical
+  const sorted = DATA.branches.slice().sort((a, b) => {
+    if (a.isMain) return -1;
+    if (b.isMain) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  sorted.forEach(br => {
+    const tr = document.createElement('tr');
+    const branchUrl = githubBase ? `${githubBase}/tree/${br.name}` : '#';
+    const pr = DATA.prs[br.name];
+    const lastCommit = br.commits && br.commits.length > 0
+      ? br.commits[br.commits.length - 1]
+      : null;
+
+    // Ahead/behind
+    const ahead = br.ahead || 0;
+    const behind = br.behind || 0;
+    const aheadStr = ahead > 0 ? `+${ahead}` : '0';
+    const behindStr = behind > 0 ? `-${behind}` : '0';
+    let abClass = 'ab-neutral';
+    if (behind > 0) abClass = 'ab-red';
+    else if (ahead > 0) abClass = 'ab-green';
+
+    // PR badge
+    let prBadge = '<span class="badge badge-none">No PR</span>';
+    if (pr) {
+      const stateClass = pr.draft ? 'badge-draft' :
+        pr.state === 'OPEN' ? 'badge-open' :
+        pr.state === 'MERGED' ? 'badge-merged' :
+        pr.state === 'CLOSED' ? 'badge-closed' : 'badge-none';
+      const label = pr.draft ? `Draft #${pr.number}` : `${pr.state} #${pr.number}`;
+      prBadge = `<a href="${pr.url}" target="_blank"><span class="badge ${stateClass}">${label}</span></a>`;
+    }
+
+    // Plane button
+    let planeBtn = '';
+    if (hasPlane) {
+      const apiUrl = plane.api_url || 'https://api.plane.so/api/v1';
+      const curlCmd = `curl -X POST ${apiUrl}/workspaces/${plane.workspace_slug}/projects/${plane.project_id}/issues/ -H 'X-Api-Key: YOUR_PLANE_API_KEY' -H 'Content-Type: application/json' -d '{"name": "[${br.name}] ", "description": "Branch: ${branchUrl}", "priority": "medium"}'`;
+      planeBtn = `<button class="plane-btn" onclick="copyToClipboard(this, '${escAttr(curlCmd)}')" title="Copy curl command to create Plane task">+ Plane</button>`;
+    }
+
+    const commitMsg = lastCommit ? escHtml(lastCommit.message).slice(0, 60) : '\u2014';
+    const commitHash = lastCommit ? lastCommit.hash.slice(0, 7) : '';
+    const commitDate = lastCommit ? (lastCommit.relativeDate || lastCommit.date) : '\u2014';
+
+    tr.innerHTML = `
+      <td>
+        <a href="${branchUrl}" target="_blank" class="branch-link">${escHtml(br.name)}</a>
+        ${br.isMain ? '<span class="main-tag">main</span>' : ''}
+      </td>
+      <td>${prBadge}</td>
+      <td class="${abClass}">${aheadStr} / ${behindStr}</td>
+      <td class="commit-msg" title="${escAttr(lastCommit ? lastCommit.message : '')}">${commitMsg || '\u2014'}</td>
+      <td class="commit-meta">${commitHash} &middot; ${escHtml(commitDate)}</td>
+      <td>${planeBtn}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+})();
+
+// ── Utilities ────────────────────────────────────────────────────────────────
+function escHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+function escAttr(str) {
+  return (str || '').replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function copyToClipboard(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToast();
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '+ Plane'; btn.classList.remove('copied'); }, 2000);
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast();
+  });
+}
+
+function showToast() {
+  const toast = document.getElementById('toast');
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>

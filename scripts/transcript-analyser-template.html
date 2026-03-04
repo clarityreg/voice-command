@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transcript Analysis Report</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --orange: #d29922;
+      --purple: #bc8cff;
+      --gray: #484f58;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+
+    h1 { font-size: 1.4rem; font-weight: 600; color: var(--text); }
+    h2 { font-size: 1.1rem; font-weight: 600; color: var(--text); margin-bottom: 12px; }
+    .meta { color: var(--text-muted); font-size: 0.8rem; }
+
+    /* ── Summary cards ──────────────────────────────────── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .summary-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .summary-card .value {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .summary-card .label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .value.high { color: var(--red); }
+    .value.medium { color: var(--orange); }
+    .value.low { color: var(--green); }
+    .value.neutral { color: var(--accent); }
+
+    /* ── Category bars ──────────────────────────────────── */
+    .category-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .cat-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .cat-row:last-child { margin-bottom: 0; }
+
+    .cat-label {
+      width: 140px;
+      font-size: 0.85rem;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .cat-bar-wrap {
+      flex: 1;
+      height: 20px;
+      background: rgba(72, 79, 88, 0.3);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .cat-bar {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .cat-bar.sev-high { background: var(--red); }
+    .cat-bar.sev-medium { background: var(--orange); }
+
+    .cat-count {
+      width: 40px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* ── Top patterns ───────────────────────────────────── */
+    .pattern-list {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .pattern-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+    }
+
+    .pattern-item:last-child { border-bottom: none; }
+
+    .pattern-text {
+      font-size: 0.85rem;
+      font-family: monospace;
+      color: var(--orange);
+    }
+
+    .pattern-count {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    /* ── Recommendations ────────────────────────────────── */
+    .rec-table {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+
+    .rec-table table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .rec-table th {
+      background: rgba(48, 54, 61, 0.4);
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .rec-table td {
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      border-top: 1px solid rgba(48, 54, 61, 0.5);
+    }
+
+    /* ── Badges ─────────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-align: center;
+    }
+
+    .badge-high { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+    .badge-medium { background: rgba(210, 153, 34, 0.15); color: var(--orange); }
+    .badge-low { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+
+    /* ── Collapsible sessions ───────────────────────────── */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .section-header:hover { background: rgba(88, 166, 255, 0.05); }
+
+    .section-body { padding: 12px 16px; }
+    .section.collapsed .section-body { display: none; }
+    .section-header .arrow { transition: transform 0.15s ease; }
+    .section.collapsed .section-header .arrow { transform: rotate(-90deg); }
+
+    .signal-item {
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.3);
+      font-size: 0.82rem;
+    }
+
+    .signal-item:last-child { border-bottom: none; }
+    .signal-cat { color: var(--accent); font-weight: 600; }
+    .signal-match { color: var(--orange); font-family: monospace; }
+    .signal-context { color: var(--text-muted); font-size: 0.78rem; margin-top: 2px; }
+
+    .tool-failure {
+      padding: 6px 0;
+      font-size: 0.82rem;
+      color: var(--red);
+    }
+
+    /* ── Tool failure section ───────────────────────────── */
+    .tool-failures-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .tf-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+    }
+
+    .tf-item:last-child { border-bottom: none; }
+    .tf-name { font-size: 0.85rem; }
+    .tf-count { font-size: 0.85rem; font-weight: 600; color: var(--red); }
+
+    /* ── Footer ─────────────────────────────────────────── */
+    footer {
+      margin-top: 32px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Transcript Analysis Report</h1>
+    <span class="meta" id="meta"></span>
+  </header>
+
+  <div class="summary-grid" id="summary"></div>
+  <div id="categories"></div>
+  <div id="tool-failures"></div>
+  <div id="patterns"></div>
+  <div id="recommendations"></div>
+  <h2 id="sessions-heading" style="display:none; margin-top: 24px; margin-bottom: 12px;">Sessions with Signals</h2>
+  <div id="sessions"></div>
+
+  <footer>
+    Generated by <strong>PRP Transcript Analyser</strong> &mdash;
+    <span id="footer-time"></span>
+  </footer>
+
+  <script>
+    const DATA = {{ANALYSER_DATA}};
+
+    // ── Helpers ──────────────────────────────────────────
+    function escHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str || '';
+      return div.innerHTML;
+    }
+
+    function sevClass(severity) {
+      if (severity === 'high') return 'high';
+      if (severity === 'medium') return 'medium';
+      return 'low';
+    }
+
+    // ── Meta ─────────────────────────────────────────────
+    document.getElementById('meta').textContent =
+      `Generated: ${DATA.generated_at} | ${DATA.date_range}`;
+    document.getElementById('footer-time').textContent = DATA.generated_at;
+
+    // ── Summary cards ────────────────────────────────────
+    (function renderSummary() {
+      const el = document.getElementById('summary');
+      const totalSignals = Object.values(DATA.category_totals)
+        .reduce((sum, c) => sum + c.count, 0);
+      const totalFailures = Object.values(DATA.tool_failure_totals)
+        .reduce((sum, c) => sum + c, 0);
+      const highCount = DATA.severity_counts.high || 0;
+
+      const cards = [
+        { value: DATA.transcript_count, label: 'Sessions Scanned', cls: 'neutral' },
+        { value: DATA.total_messages, label: 'Total Messages', cls: 'neutral' },
+        { value: totalSignals, label: 'Failure Signals', cls: totalSignals > 10 ? 'high' : totalSignals > 3 ? 'medium' : 'low' },
+        { value: totalFailures, label: 'Tool Failures', cls: totalFailures > 5 ? 'high' : totalFailures > 0 ? 'medium' : 'low' },
+        { value: highCount, label: 'High Severity', cls: highCount > 3 ? 'high' : highCount > 0 ? 'medium' : 'low' },
+        { value: DATA.recommendations.length, label: 'Recommendations', cls: DATA.recommendations.length > 3 ? 'high' : DATA.recommendations.length > 0 ? 'medium' : 'low' },
+      ];
+
+      el.innerHTML = cards.map(c => `
+        <div class="summary-card">
+          <div class="value ${c.cls}">${c.value}</div>
+          <div class="label">${c.label}</div>
+        </div>
+      `).join('');
+    })();
+
+    // ── Category bars ────────────────────────────────────
+    (function renderCategories() {
+      const el = document.getElementById('categories');
+      const cats = DATA.category_totals;
+      const maxCount = Math.max(1, ...Object.values(cats).map(c => c.count));
+
+      let rows = '';
+      for (const [key, info] of Object.entries(cats)) {
+        const pct = (info.count / maxCount * 100).toFixed(1);
+        rows += `
+          <div class="cat-row">
+            <span class="cat-label">${escHtml(info.label)}</span>
+            <div class="cat-bar-wrap">
+              <div class="cat-bar sev-${info.severity}" style="width:${pct}%"></div>
+            </div>
+            <span class="cat-count">${info.count}</span>
+          </div>
+        `;
+      }
+
+      el.innerHTML = `
+        <div class="category-section">
+          <h2>Signal Categories</h2>
+          ${rows}
+        </div>
+      `;
+    })();
+
+    // ── Tool failures ────────────────────────────────────
+    (function renderToolFailures() {
+      const el = document.getElementById('tool-failures');
+      const tf = DATA.tool_failure_totals;
+      if (Object.keys(tf).length === 0) return;
+
+      let items = '';
+      for (const [name, count] of Object.entries(tf).sort((a, b) => b[1] - a[1])) {
+        items += `
+          <div class="tf-item">
+            <span class="tf-name">${escHtml(name)}</span>
+            <span class="tf-count">${count}</span>
+          </div>
+        `;
+      }
+
+      el.innerHTML = `
+        <div class="tool-failures-section">
+          <h2>Tool Failures</h2>
+          ${items}
+        </div>
+      `;
+    })();
+
+    // ── Top patterns ─────────────────────────────────────
+    (function renderPatterns() {
+      const el = document.getElementById('patterns');
+      if (DATA.top_patterns.length === 0) return;
+
+      let items = '';
+      for (const p of DATA.top_patterns) {
+        items += `
+          <div class="pattern-item">
+            <span class="pattern-text">"${escHtml(p.pattern)}"</span>
+            <span class="pattern-count">${p.count}x</span>
+          </div>
+        `;
+      }
+
+      el.innerHTML = `
+        <div class="pattern-list">
+          <h2>Top Patterns</h2>
+          ${items}
+        </div>
+      `;
+    })();
+
+    // ── Recommendations ──────────────────────────────────
+    (function renderRecommendations() {
+      const el = document.getElementById('recommendations');
+      if (DATA.recommendations.length === 0) return;
+
+      let rows = '';
+      for (const r of DATA.recommendations) {
+        rows += `
+          <tr>
+            <td><span class="badge badge-${r.severity}">${r.severity.toUpperCase()}</span></td>
+            <td>${escHtml(r.target)}</td>
+            <td>${escHtml(r.action)}</td>
+            <td>${escHtml(r.reason)}</td>
+            <td style="text-align:right">${r.signal_count}</td>
+          </tr>
+        `;
+      }
+
+      el.innerHTML = `
+        <div class="rec-table">
+          <h2 style="padding: 16px 14px 0;">Recommendations</h2>
+          <table>
+            <thead><tr>
+              <th>Severity</th><th>Target</th><th>Action</th><th>Reason</th><th style="text-align:right">Signals</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    })();
+
+    // ── Sessions ─────────────────────────────────────────
+    (function renderSessions() {
+      const container = document.getElementById('sessions');
+      if (DATA.sessions.length === 0) return;
+
+      document.getElementById('sessions-heading').style.display = 'block';
+
+      DATA.sessions.forEach((s, i) => {
+        const section = document.createElement('div');
+        section.className = 'section' + (i > 2 ? ' collapsed' : '');
+
+        const sid = s.session_id.length > 16
+          ? s.session_id.substring(0, 16) + '...'
+          : s.session_id;
+        const time = s.start_time ? s.start_time.substring(0, 19) : 'unknown';
+
+        const header = document.createElement('div');
+        header.className = 'section-header';
+        header.innerHTML = `
+          <span><span class="arrow">&#9660;</span> ${escHtml(sid)} &mdash; ${time}</span>
+          <span class="counts">${s.signal_count} signals, ${s.tool_failure_count} failures</span>
+        `;
+        header.addEventListener('click', () => section.classList.toggle('collapsed'));
+        section.appendChild(header);
+
+        const body = document.createElement('div');
+        body.className = 'section-body';
+
+        let html = '';
+
+        // Signals
+        if (s.signals && s.signals.length > 0) {
+          for (const sig of s.signals) {
+            html += `
+              <div class="signal-item">
+                <span class="signal-cat">[${escHtml(sig.category)}]</span>
+                <span class="signal-match">"${escHtml(sig.matched_text)}"</span>
+                <div class="signal-context">${escHtml(sig.context)}</div>
+              </div>
+            `;
+          }
+        }
+
+        // Tool failures
+        if (s.tool_failures && s.tool_failures.length > 0) {
+          for (const tf of s.tool_failures) {
+            html += `
+              <div class="tool-failure">
+                <strong>${escHtml(tf.tool_name)}</strong> (${escHtml(tf.failure_type)})
+                &mdash; ${tf.consecutive_count}x: ${escHtml(tf.error_message)}
+              </div>
+            `;
+          }
+        }
+
+        body.innerHTML = html;
+        section.appendChild(body);
+        container.appendChild(section);
+      });
+    })();
+  </script>
+</body>
+</html>

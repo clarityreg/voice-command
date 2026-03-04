@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QA Report</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --orange: #d29922;
+      --purple: #bc8cff;
+      --gray: #484f58;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+
+    h1 { font-size: 1.4rem; font-weight: 600; color: var(--text); }
+    .meta { color: var(--text-muted); font-size: 0.8rem; }
+
+    /* ── Score bar ────────────────────────────────────────── */
+    .score-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .score-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 12px;
+    }
+
+    .score-label { font-size: 1.1rem; font-weight: 600; }
+
+    .status-badge {
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 4px 14px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .status-pass { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+    .status-warn { background: rgba(210, 153, 34, 0.15); color: var(--orange); }
+    .status-fail { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+
+    .score-bar {
+      height: 12px;
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      background: var(--gray);
+    }
+
+    .score-bar .seg-pass { background: var(--green); }
+    .score-bar .seg-warn { background: var(--orange); }
+    .score-bar .seg-fail { background: var(--red); }
+
+    .score-summary {
+      display: flex;
+      gap: 20px;
+      margin-top: 10px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    .score-summary span {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-pass { background: var(--green); }
+    .dot-warn { background: var(--orange); }
+    .dot-fail { background: var(--red); }
+    .dot-info { background: var(--accent); }
+
+    /* ── Metric cards ────────────────────────────────────── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .card-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+
+    .card-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+    }
+
+    .card-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .trend-up { color: var(--green); }
+    .trend-down { color: var(--red); }
+    .trend-stable { color: var(--text-muted); }
+
+    /* ── Section cards ────────────────────────────────────── */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .section-header:hover {
+      background: rgba(88, 166, 255, 0.05);
+    }
+
+    .section-body { padding: 16px; }
+
+    .section.collapsed .section-body { display: none; }
+    .section-header .arrow { transition: transform 0.15s ease; }
+    .section.collapsed .section-header .arrow { transform: rotate(-90deg); }
+
+    /* ── Tables ───────────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    th {
+      text-align: left;
+      padding: 8px 10px;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    td {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      min-width: 44px;
+      text-align: center;
+    }
+
+    .badge-PASS { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+    .badge-WARN { background: rgba(210, 153, 34, 0.15); color: var(--orange); }
+    .badge-FAIL { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+
+    /* ── Recommendations ──────────────────────────────────── */
+    .rec-item {
+      padding: 10px 14px;
+      border-left: 3px solid var(--accent);
+      margin-bottom: 10px;
+      background: rgba(88, 166, 255, 0.04);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.85rem;
+    }
+
+    .rec-item .rec-title { font-weight: 600; margin-bottom: 4px; }
+    .rec-item .rec-action { color: var(--text-muted); font-size: 0.8rem; }
+
+    /* ── Severity bars ────────────────────────────────────── */
+    .sev-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .sev-label {
+      font-size: 0.78rem;
+      width: 80px;
+      flex-shrink: 0;
+    }
+
+    .sev-track {
+      flex: 1;
+      height: 8px;
+      background: var(--gray);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .sev-fill {
+      height: 100%;
+      border-radius: 4px;
+    }
+
+    .sev-count {
+      font-size: 0.78rem;
+      width: 30px;
+      text-align: right;
+      color: var(--text-muted);
+    }
+
+    .sev-p0 { background: var(--red); }
+    .sev-p1 { background: var(--orange); }
+    .sev-p2 { background: var(--purple); }
+    .sev-p3 { background: var(--accent); }
+    .sev-p4 { background: var(--gray); }
+
+    .no-data {
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 0.85rem;
+    }
+
+    /* ── Footer ───────────────────────────────────────────── */
+    footer {
+      margin-top: 32px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="title">QA Report</h1>
+    <span class="meta" id="timestamp"></span>
+  </header>
+
+  <div class="score-container" id="score-container"></div>
+  <div class="cards" id="cards"></div>
+  <div id="sections"></div>
+
+  <footer>
+    Generated by <strong>PRP QA Report</strong> &mdash;
+    <span id="footer-time"></span>
+  </footer>
+
+  <script>
+    const DATA = {{QA_DATA}};
+
+    function escHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = String(str);
+      return div.innerHTML;
+    }
+
+    function trendArrow(trend) {
+      if (trend === 'up') return '<span class="trend-up">&#9650;</span>';
+      if (trend === 'down') return '<span class="trend-down">&#9660;</span>';
+      return '<span class="trend-stable">&#9654;</span>';
+    }
+
+    // ── Header + Score ────────────────────────────────────
+    function renderHeader() {
+      const project = DATA.project_name || 'Project';
+      const period = DATA.period || '';
+      document.getElementById('title').textContent = project + ' — QA Report';
+      document.getElementById('timestamp').textContent =
+        'Generated: ' + DATA.generated_at + (period ? ' | Period: ' + period : '');
+      document.getElementById('footer-time').textContent = DATA.generated_at;
+    }
+
+    function renderScore() {
+      const s = DATA.overall_status || 'PASS';
+      const gates = DATA.quality_gates || [];
+      const passed = gates.filter(g => g.status === 'PASS').length;
+      const failed = gates.filter(g => g.status === 'FAIL').length;
+      const total = gates.length;
+      const passPct = total > 0 ? (passed / total * 100) : 100;
+      const failPct = total > 0 ? (failed / total * 100) : 0;
+
+      const statusCls = s === 'PASS' ? 'status-pass' : s === 'FAIL' ? 'status-fail' : 'status-warn';
+
+      document.getElementById('score-container').innerHTML = `
+        <div class="score-header">
+          <span class="score-label">Quality Gate Status</span>
+          <span class="status-badge ${statusCls}">${escHtml(s)}</span>
+        </div>
+        <div class="score-bar">
+          <div class="seg-pass" style="width:${passPct}%"></div>
+          <div class="seg-fail" style="width:${failPct}%"></div>
+        </div>
+        <div class="score-summary">
+          <span><span class="dot dot-pass"></span> ${passed} pass</span>
+          <span><span class="dot dot-fail"></span> ${failed} fail</span>
+        </div>
+      `;
+    }
+
+    // ── Summary cards ─────────────────────────────────────
+    function renderCards() {
+      const m = DATA.metrics || {};
+      const cards = [
+        { label: 'Pass Rate', value: (m.pass_rate != null ? m.pass_rate.toFixed(1) + '%' : 'N/A'),
+          sub: m.total_tests != null ? m.total_passed + '/' + m.total_tests + ' tests' : '',
+          color: m.pass_rate >= 95 ? 'var(--green)' : m.pass_rate >= 80 ? 'var(--orange)' : 'var(--red)' },
+        { label: 'Coverage', value: (m.coverage != null ? m.coverage.toFixed(1) + '%' : 'N/A'),
+          sub: m.coverage_trend ? trendArrow(m.coverage_trend) + ' ' + m.coverage_trend : '',
+          color: m.coverage >= 80 ? 'var(--green)' : m.coverage >= 60 ? 'var(--orange)' : 'var(--red)' },
+        { label: 'Open Bugs', value: m.open_bugs != null ? String(m.open_bugs) : '0',
+          sub: m.p0_bugs ? 'P0: ' + m.p0_bugs + ', P1: ' + (m.p1_bugs || 0) : '',
+          color: (m.p0_bugs || 0) > 0 ? 'var(--red)' : (m.open_bugs || 0) > 5 ? 'var(--orange)' : 'var(--green)' },
+        { label: 'MTTR', value: m.mttr != null ? m.mttr.toFixed(1) + 'd' : 'N/A',
+          sub: m.bugs_resolved_count ? m.bugs_resolved_count + ' resolved' : '',
+          color: 'var(--accent)' },
+      ];
+
+      const container = document.getElementById('cards');
+      container.innerHTML = cards.map(c => `
+        <div class="card">
+          <div class="card-label">${c.label}</div>
+          <div class="card-value" style="color:${c.color}">${c.value}</div>
+          <div class="card-sub">${c.sub}</div>
+        </div>
+      `).join('');
+    }
+
+    // ── Quality gates table ───────────────────────────────
+    function renderGates() {
+      const gates = DATA.quality_gates || [];
+      if (gates.length === 0) return;
+
+      const rows = gates.map(g => `
+        <tr>
+          <td>${escHtml(g.name)}</td>
+          <td>${escHtml(g.threshold)}</td>
+          <td>${escHtml(g.current)}</td>
+          <td><span class="badge badge-${g.status}">${g.status}</span></td>
+        </tr>
+      `).join('');
+
+      addSection('Quality Gates', `
+        <table>
+          <thead><tr><th>Gate</th><th>Threshold</th><th>Current</th><th>Status</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `);
+    }
+
+    // ── Test results table ────────────────────────────────
+    function renderTestResults() {
+      const runs = DATA.test_runs || [];
+      if (runs.length === 0) {
+        addSection('Test Results', '<p class="no-data">No test runs recorded in this period.</p>');
+        return;
+      }
+
+      const rows = runs.map(r => `
+        <tr>
+          <td>${escHtml(r.timestamp)}</td>
+          <td>${escHtml(r.suite || '-')}</td>
+          <td>${r.total}</td>
+          <td style="color:var(--green)">${r.passed}</td>
+          <td style="color:${r.failed > 0 ? 'var(--red)' : 'var(--text-muted)'}">${r.failed}</td>
+          <td>${r.skipped}</td>
+          <td>${r.coverage != null ? r.coverage.toFixed(1) + '%' : '-'}</td>
+          <td>${r.duration != null ? (r.duration / 1000).toFixed(1) + 's' : '-'}</td>
+        </tr>
+      `).join('');
+
+      addSection('Test Results', `
+        <table>
+          <thead><tr>
+            <th>Timestamp</th><th>Suite</th><th>Total</th><th>Passed</th>
+            <th>Failed</th><th>Skipped</th><th>Coverage</th><th>Duration</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `);
+    }
+
+    // ── Coverage trend ────────────────────────────────────
+    function renderCoverageTrend() {
+      const points = DATA.coverage_points || [];
+      if (points.length === 0) {
+        addSection('Coverage Trend', '<p class="no-data">No coverage data available.</p>');
+        return;
+      }
+
+      const rows = points.map(p => {
+        const deltaStr = p.delta != null && p.delta !== 0
+          ? `<span class="${p.delta > 0 ? 'trend-up' : 'trend-down'}">${p.delta > 0 ? '+' : ''}${p.delta.toFixed(1)}%</span>`
+          : '-';
+        return `<tr><td>${escHtml(p.date)}</td><td>${p.coverage.toFixed(1)}%</td><td>${deltaStr}</td></tr>`;
+      }).join('');
+
+      addSection('Coverage Trend', `
+        <table>
+          <thead><tr><th>Date</th><th>Coverage</th><th>Delta</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `);
+    }
+
+    // ── Bug tracker ───────────────────────────────────────
+    function renderBugs() {
+      const bugs = DATA.bugs || {};
+      const open = bugs.open_by_severity || {};
+      const total = Object.values(open).reduce((a, b) => a + b, 0);
+
+      if (total === 0 && !bugs.new_count && !bugs.closed_count) {
+        addSection('Bug Tracker', '<p class="no-data">No bugs tracked.</p>');
+        return;
+      }
+
+      const max = Math.max(1, ...Object.values(open));
+      const severities = ['P0', 'P1', 'P2', 'P3', 'P4'];
+      const colors = { P0: 'sev-p0', P1: 'sev-p1', P2: 'sev-p2', P3: 'sev-p3', P4: 'sev-p4' };
+
+      const bars = severities.map(s => {
+        const count = open[s] || 0;
+        const pct = (count / max * 100);
+        return `
+          <div class="sev-bar">
+            <span class="sev-label">${s}</span>
+            <div class="sev-track"><div class="sev-fill ${colors[s]}" style="width:${pct}%"></div></div>
+            <span class="sev-count">${count}</span>
+          </div>
+        `;
+      }).join('');
+
+      const activity = `
+        <table style="margin-top:12px">
+          <thead><tr><th>Metric</th><th>Count</th></tr></thead>
+          <tbody>
+            <tr><td>Total open</td><td>${total}</td></tr>
+            <tr><td>New (period)</td><td>${bugs.new_count || 0}</td></tr>
+            <tr><td>Resolved (period)</td><td>${bugs.closed_count || 0}</td></tr>
+            <tr><td>Net change</td><td>${(bugs.new_count || 0) - (bugs.closed_count || 0)}</td></tr>
+          </tbody>
+        </table>
+      `;
+
+      addSection('Bug Tracker', bars + activity);
+    }
+
+    // ── Recommendations ───────────────────────────────────
+    function renderRecommendations() {
+      const recs = DATA.recommendations || [];
+      if (recs.length === 0) return;
+
+      const items = recs.map(r => `
+        <div class="rec-item">
+          <div class="rec-title">${escHtml(r.title)}</div>
+          <div class="rec-action">${escHtml(r.action)}</div>
+        </div>
+      `).join('');
+
+      addSection('Recommendations', items);
+    }
+
+    // ── Section helper ────────────────────────────────────
+    function addSection(title, bodyHtml) {
+      const container = document.getElementById('sections');
+      const section = document.createElement('div');
+      section.className = 'section';
+
+      const header = document.createElement('div');
+      header.className = 'section-header';
+      header.innerHTML = `<span><span class="arrow">&#9660;</span> ${title}</span>`;
+      header.addEventListener('click', () => section.classList.toggle('collapsed'));
+
+      const body = document.createElement('div');
+      body.className = 'section-body';
+      body.innerHTML = bodyHtml;
+
+      section.appendChild(header);
+      section.appendChild(body);
+      container.appendChild(section);
+    }
+
+    // ── Init ──────────────────────────────────────────────
+    renderHeader();
+    renderScore();
+    renderCards();
+    renderGates();
+    renderTestResults();
+    renderCoverageTrend();
+    renderBugs();
+    renderRecommendations();
+  </script>
+</body>
+</html>
