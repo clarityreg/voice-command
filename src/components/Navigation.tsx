@@ -2,23 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const tabs = [
-  { href: "/", label: "Focus", icon: "\uD83C\uDFAF" },
-  { href: "/inbox", label: "Inbox", icon: "\uD83D\uDCEC" },
-  { href: "/triage", label: "Triage", icon: "\u26A1" },
-  { href: "/agent", label: "Agent", icon: "🤖" },
-  { href: "/dashboard", label: "Events", icon: "\uD83D\uDCCA" },
-  { href: "/stats", label: "Stats", icon: "\uD83D\uDCC8" },
-  { href: "/settings", label: "Settings", icon: "\u2699\uFE0F" },
-];
+import { navTabs } from "@/lib/navTabs";
 
 export default function Navigation() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 gap-1 rounded-nav bg-nav-bg px-6 py-3 shadow-lg">
-      {tabs.map((tab) => {
+    <nav className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 gap-1 rounded-nav bg-nav-bg px-6 py-3 shadow-lg md:hidden">
+      {navTabs.map((tab) => {
         const active = pathname === tab.href;
         return (
           <Link

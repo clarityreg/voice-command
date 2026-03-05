@@ -53,7 +53,7 @@ export default function FocusPage() {
   const pending = status?.pending_count ?? 0;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto flex max-w-lg flex-col gap-6 lg:max-w-2xl">
       <ScoreRing pending={pending} />
 
       <div className="flex justify-center gap-4 text-2xl">

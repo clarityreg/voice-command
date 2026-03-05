@@ -1,4 +1,10 @@
+import os
+
 from pydantic_settings import BaseSettings
+
+# When dotenvx injects decrypted env vars, skip reading the encrypted .env file
+# directly — pydantic can't parse the encrypted values.
+_env_file = ".env" if not os.getenv("DOTENV_CONFIG") else None
 
 
 class Settings(BaseSettings):
@@ -35,7 +41,7 @@ class Settings(BaseSettings):
     ASANA_DEFAULT_WORKSPACE_GID: str = ""
     ASANA_DEFAULT_PROJECT_GID: str = ""
 
-    model_config = {"env_file": ".env"}
+    model_config = {"env_file": _env_file}
 
     @property
     def slack_workspaces(self) -> list[dict]:

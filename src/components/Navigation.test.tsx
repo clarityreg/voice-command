@@ -37,14 +37,15 @@ describe("Navigation", () => {
     expect(screen.getByText("Settings").closest("a")).toHaveAttribute("href", "/settings");
   });
 
-  it("Agent tab links to /agent", () => {
-    render(<Navigation />);
-    expect(screen.getByText("Agent").closest("a")).toHaveAttribute("href", "/agent");
-  });
-
   it("highlights the active tab", () => {
     render(<Navigation />);
     const focusLink = screen.getByText("Focus").closest("a");
     expect(focusLink?.className).toContain("scale-105");
+  });
+
+  it("has md:hidden class on nav element", () => {
+    const { container } = render(<Navigation />);
+    const nav = container.querySelector("nav");
+    expect(nav?.className).toContain("md:hidden");
   });
 });

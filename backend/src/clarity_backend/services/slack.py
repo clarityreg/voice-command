@@ -47,29 +47,53 @@ class SlackService(BaseService):
             return []
         notifications = []
         try:
+            # Fetch DMs
             try:
-                conversations = await self._web_client.conversations_list(
+                dm_convos = await self._web_client.conversations_list(
                     types="im,mpim", limit=10
                 )
             except Exception:
-                conversations = await self._web_client.conversations_list(
+                dm_convos = await self._web_client.conversations_list(
                     types="im", limit=10
                 )
 
-            for conv in conversations.get("channels", [])[:5]:
-                history = await self._web_client.conversations_history(
-                    channel=conv["id"], limit=3
+            for conv in dm_convos.get("channels", [])[:5]:
+                await self._fetch_channel_messages(conv["id"], notifications, is_dm=True)
+
+            # Fetch public channels the bot is a member of
+            try:
+                chan_convos = await self._web_client.conversations_list(
+                    types="public_channel,private_channel", limit=20
                 )
-                for msg in history.get("messages", []):
-                    if msg.get("subtype") is None:
-                        notification = await self._message_to_notification(
-                            msg, conv["id"], is_dm=True
-                        )
-                        if notification:
-                            notifications.append(notification)
+                member_channels = [
+                    c for c in chan_convos.get("channels", []) if c.get("is_member")
+                ]
+                for conv in member_channels[:10]:
+                    await self._fetch_channel_messages(conv["id"], notifications, is_dm=False)
+            except Exception:
+                pass
+
         except Exception as e:
             print(f"[Slack] Error fetching recent for {self.workspace_name}: {e}")
+        notifications.sort(key=lambda n: n.timestamp, reverse=True)
         return notifications[:limit]
+
+    async def _fetch_channel_messages(
+        self, channel_id: str, notifications: list, is_dm: bool = False
+    ):
+        try:
+            history = await self._web_client.conversations_history(
+                channel=channel_id, limit=3
+            )
+            for msg in history.get("messages", []):
+                if msg.get("subtype") is None:
+                    notification = await self._message_to_notification(
+                        msg, channel_id, is_dm=is_dm
+                    )
+                    if notification:
+                        notifications.append(notification)
+        except Exception:
+            pass
 
     async def listen(self):
         async def handle_event(client: SocketModeClient, req: SocketModeRequest):

@@ -96,79 +96,82 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <h2 className="text-lg font-bold text-bark">Settings</h2>
+    <div className="mx-auto max-w-4xl">
+      <h2 className="mb-5 text-lg font-bold text-bark">Settings</h2>
 
-      <section className="rounded-card bg-card-bg p-5 shadow-card">
-        <h3 className="mb-3 flex items-center gap-2 font-semibold text-bark">
-          <span className="text-lg">{"\uD83D\uDCC1"}</span> Plane Integration
-        </h3>
-        <div className="flex flex-col gap-3">
-          <Field label="API Key" value={form.plane_api_key} type="password" onChange={(v) => handleChange("plane_api_key", v)} />
-          <Field label="Workspace Slug" value={form.plane_workspace_slug} onChange={(v) => handleChange("plane_workspace_slug", v)} />
-          <Field label="Project ID" value={form.plane_project_id} onChange={(v) => handleChange("plane_project_id", v)} />
+      <div className="lg:grid lg:grid-cols-2 lg:gap-8">
+        {/* Left column — settings form */}
+        <div className="flex flex-col gap-5">
+          <section className="rounded-card bg-card-bg p-5 shadow-card">
+            <h3 className="mb-3 flex items-center gap-2 font-semibold text-bark">
+              <span className="text-lg">{"\uD83D\uDCC1"}</span> Plane Integration
+            </h3>
+            <div className="flex flex-col gap-3">
+              <Field label="API Key" value={form.plane_api_key} type="password" onChange={(v) => handleChange("plane_api_key", v)} />
+              <Field label="Workspace Slug" value={form.plane_workspace_slug} onChange={(v) => handleChange("plane_workspace_slug", v)} />
+              <Field label="Project ID" value={form.plane_project_id} onChange={(v) => handleChange("plane_project_id", v)} />
+            </div>
+          </section>
+
+          <section className="rounded-card bg-card-bg p-5 shadow-card">
+            <h3 className="mb-3 flex items-center gap-2 font-semibold text-bark">
+              <span className="text-lg">{"\uD83D\uDEE1\uFE0F"}</span> Aikido Webhook
+            </h3>
+            <Field label="Webhook Secret" value={form.aikido_webhook_secret} type="password" onChange={(v) => handleChange("aikido_webhook_secret", v)} />
+          </section>
+
+          <section className="rounded-card bg-card-bg p-5 shadow-card">
+            <h3 className="mb-3 flex items-center gap-2 font-semibold text-bark">
+              <span className="text-lg">{"\u23F1\uFE0F"}</span> Timer
+            </h3>
+            <div className="flex gap-4">
+              <Field label="Focus (min)" value={form.focus_minutes} type="number" onChange={(v) => handleChange("focus_minutes", v)} />
+              <Field label="Break (min)" value={form.break_minutes} type="number" onChange={(v) => handleChange("break_minutes", v)} />
+            </div>
+          </section>
+
+          <section className="rounded-card bg-card-bg p-5 shadow-card">
+            <h3 className="mb-3 flex items-center gap-2 font-semibold text-bark">
+              <span className="text-lg">{"\uD83C\uDFA4"}</span> Voice Recognition
+            </h3>
+            <div className="flex flex-col gap-3">
+              <TtsSettings />
+              <hr className="border-cream-dark" />
+              <WhisperSetup />
+              <VocabularyEditor />
+            </div>
+          </section>
+
+          <NotificationSettings />
+
+          {error && (
+            <p className="text-sm text-sev-critical">{error}</p>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-pill bg-nav-bg px-5 py-2.5 text-sm font-medium text-cream transition hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save Settings"}
+            </button>
+            <button
+              onClick={handleReset}
+              className="rounded-pill bg-cream-dark px-5 py-2.5 text-sm font-medium text-bark transition hover:opacity-80"
+            >
+              Reset
+            </button>
+            {saved && (
+              <span className="self-center text-sm text-sev-low">{"\u2705"} Saved</span>
+            )}
+          </div>
         </div>
-      </section>
 
-      <section className="rounded-card bg-card-bg p-5 shadow-card">
-        <h3 className="mb-3 flex items-center gap-2 font-semibold text-bark">
-          <span className="text-lg">{"\uD83D\uDEE1\uFE0F"}</span> Aikido Webhook
-        </h3>
-        <Field label="Webhook Secret" value={form.aikido_webhook_secret} type="password" onChange={(v) => handleChange("aikido_webhook_secret", v)} />
-      </section>
-
-      <section className="rounded-card bg-card-bg p-5 shadow-card">
-        <h3 className="mb-3 flex items-center gap-2 font-semibold text-bark">
-          <span className="text-lg">{"\u23F1\uFE0F"}</span> Timer
-        </h3>
-        <div className="flex gap-4">
-          <Field label="Focus (min)" value={form.focus_minutes} type="number" onChange={(v) => handleChange("focus_minutes", v)} />
-          <Field label="Break (min)" value={form.break_minutes} type="number" onChange={(v) => handleChange("break_minutes", v)} />
+        {/* Right column — connected accounts */}
+        <div className="mt-5 lg:mt-0">
+          <AccountManager />
         </div>
-      </section>
-
-      <section className="rounded-card bg-card-bg p-5 shadow-card">
-        <h3 className="mb-3 flex items-center gap-2 font-semibold text-bark">
-          <span className="text-lg">{"\uD83C\uDFA4"}</span> Voice Recognition
-        </h3>
-        <div className="flex flex-col gap-3">
-          <TtsSettings />
-          <hr className="border-cream-dark" />
-          <WhisperSetup />
-          <VocabularyEditor />
-        </div>
-      </section>
-
-      <NotificationSettings />
-
-      <section className="rounded-card bg-card-bg p-5 shadow-card">
-        <h3 className="mb-3 flex items-center gap-2 font-semibold text-bark">
-          <span className="text-lg">📬</span> Connected Accounts
-        </h3>
-        <AccountManager />
-      </section>
-
-      {error && (
-        <p className="text-sm text-sev-critical">{error}</p>
-      )}
-
-      <div className="flex gap-3">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded-pill bg-nav-bg px-5 py-2.5 text-sm font-medium text-cream transition hover:opacity-90 disabled:opacity-50"
-        >
-          {saving ? "Saving..." : "Save Settings"}
-        </button>
-        <button
-          onClick={handleReset}
-          className="rounded-pill bg-cream-dark px-5 py-2.5 text-sm font-medium text-bark transition hover:opacity-80"
-        >
-          Reset
-        </button>
-        {saved && (
-          <span className="self-center text-sm text-sev-low">{"\u2705"} Saved</span>
-        )}
       </div>
     </div>
   );

@@ -35,7 +35,7 @@ export default function StatsPage() {
   const maxTrend = Math.max(...stats.trend.map((t) => t.count), 1);
 
   return (
-    <div>
+    <div className="mx-auto max-w-4xl">
       <h2 className="mb-4 text-xl font-bold text-bark">Statistics</h2>
 
       {/* Summary cards */}
@@ -61,7 +61,7 @@ export default function StatsPage() {
         <h3 className="mb-3 text-sm font-semibold text-bark">
           Pending by Severity
         </h3>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           {(["critical", "high", "medium", "low"] as const).map((sev: Severity) => (
             <div
               key={sev}

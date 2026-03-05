@@ -1,9 +1,13 @@
+import logging
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from clarity_backend.config import settings
 from clarity_backend.database import engine
 from clarity_backend.notifications.crud import delete_account_tokens
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["auth"])
 
@@ -47,15 +51,17 @@ async def google_oauth_callback(code: str, state: str = ""):
     )
     from clarity_backend.services.registry import registry
 
-    if not state or not validate_and_consume_state(state):
+    code_verifier = validate_and_consume_state(state) if state else None
+    if not code_verifier:
         raise HTTPException(400, "Invalid or expired state token")
     try:
-        tokens = await exchange_code(code)
+        tokens = await exchange_code(code, code_verifier)
         email = await get_user_email(tokens["access_token"])
         await save_tokens(email, tokens)
         await registry.add_gmail_service(email, tokens)
         return HTMLResponse(_OAUTH_SUCCESS_HTML.format(service="Gmail", email=email))
     except Exception as e:
+        logger.exception("Google OAuth callback failed")
         raise HTTPException(500, f"OAuth token exchange failed: {e}") from e
 
 

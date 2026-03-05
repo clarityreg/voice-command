@@ -176,7 +176,7 @@ export default function TriagePage() {
   }
 
   return (
-    <div>
+    <div className="mx-auto max-w-xl lg:max-w-2xl">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-bold text-bark">Triage Queue</h2>
         <div className="flex items-center gap-3">

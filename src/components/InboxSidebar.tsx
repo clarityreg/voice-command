@@ -1,9 +1,7 @@
 "use client";
 
 import type { Source } from "@/lib/notificationTypes";
-import { SOURCE_CONFIG } from "@/lib/notificationTypes";
-
-const SOURCES: (Source | "all")[] = ["all", "gmail", "outlook", "slack", "asana", "plane"];
+import { SOURCE_CONFIG, SOURCES } from "@/lib/notificationTypes";
 
 interface InboxSidebarProps {
   activeFilter: Source | "all";
@@ -15,7 +13,7 @@ interface InboxSidebarProps {
 
 export default function InboxSidebar({ activeFilter, onFilterChange, unreadCounts, searchQuery, onSearchChange }: InboxSidebarProps) {
   return (
-    <div className="flex w-52 flex-col rounded-card bg-card-bg p-4 shadow-card">
+    <div className="hidden lg:flex w-52 flex-col rounded-card bg-card-bg p-4 shadow-card shrink-0">
       {/* Search */}
       <input
         type="text"

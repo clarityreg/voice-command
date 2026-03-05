@@ -22,7 +22,7 @@ trap cleanup EXIT INT TERM
 # ── Backend (FastAPI on :8001) ──────────────────────────────────
 echo "Starting backend..."
 cd "$BACKEND_DIR"
-uv run uvicorn clarity_backend.main:app --host 0.0.0.0 --port 8070 --reload &
+DOTENV_CONFIG=1 dotenvx run -- uv run uvicorn clarity_backend.main:app --host 0.0.0.0 --port 8070 --reload &
 PIDS+=($!)
 cd "$ROOT"
 

@@ -38,7 +38,7 @@ export default function AgentPage() {
   const doneJobs = jobs.filter((j) => !ACTIVE_STATUSES.has(j.status));
 
   return (
-    <div>
+    <div className="mx-auto max-w-3xl">
       <h2 className="mb-4 text-xl font-bold text-bark">Agent Activity</h2>
 
       {activeJobs.length > 0 && (

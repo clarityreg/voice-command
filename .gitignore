@@ -22,6 +22,7 @@ backend/.pytest_cache/
 # Environment
 .env
 .env.local
+*.env.keys
 prp-secrets.env
 
 # Backup files

@@ -15,7 +15,8 @@ GMAIL_SCOPES = [
     "https://www.googleapis.com/auth/gmail.send",
 ]
 
-_pending_states: dict[str, bool] = {}
+# Maps state token → code_verifier (needed for PKCE token exchange)
+_pending_states: dict[str, str] = {}
 
 
 def _make_client_config() -> dict:
@@ -32,7 +33,6 @@ def _make_client_config() -> dict:
 
 def build_auth_url() -> str:
     state = secrets.token_urlsafe(32)
-    _pending_states[state] = True
     flow = Flow.from_client_config(
         _make_client_config(),
         scopes=GMAIL_SCOPES,
@@ -41,20 +41,24 @@ def build_auth_url() -> str:
     auth_url, _ = flow.authorization_url(
         access_type="offline", prompt="consent", state=state
     )
+    # Store the PKCE code_verifier so exchange_code() can use it
+    _pending_states[state] = flow.code_verifier
     return auth_url
 
 
-def validate_and_consume_state(state: str) -> bool:
-    return _pending_states.pop(state, False)
+def validate_and_consume_state(state: str) -> str | None:
+    """Pop and return the code_verifier for this state, or None if invalid."""
+    return _pending_states.pop(state, None)
 
 
-async def exchange_code(code: str) -> dict:
+async def exchange_code(code: str, code_verifier: str) -> dict:
     def _exchange():
         flow = Flow.from_client_config(
             _make_client_config(),
             scopes=GMAIL_SCOPES,
             redirect_uri=settings.GOOGLE_REDIRECT_URI,
         )
+        flow.code_verifier = code_verifier
         flow.fetch_token(code=code)
         creds = flow.credentials
         return {

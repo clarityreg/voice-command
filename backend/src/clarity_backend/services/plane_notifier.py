@@ -20,11 +20,18 @@ class PlaneNotifierService(BaseService):
         self._poll_interval = 30
         self._last_check: datetime | None = None
 
+    @property
+    def _configured(self) -> bool:
+        return bool(settings.PLANE_API_KEY and self._workspace and settings.PLANE_PROJECT_ID)
+
     async def connect(self) -> bool:
+        if not self._configured:
+            print("[Plane] Skipping — API key, workspace, or project ID not set")
+            return False
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.get(
-                    f"{self._base_url}/workspaces/{self._workspace}/",
+                    f"{self._base_url}/workspaces/{self._workspace}/projects/",
                     headers=self._headers,
                 )
                 resp.raise_for_status()
@@ -60,6 +67,8 @@ class PlaneNotifierService(BaseService):
         return notifications
 
     async def listen(self):
+        if not self._configured:
+            return
         while self._running:
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:

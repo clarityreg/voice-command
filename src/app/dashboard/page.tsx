@@ -42,7 +42,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div>
+    <div className="mx-auto max-w-4xl">
       <h2 className="mb-4 text-xl font-bold text-bark">All Events</h2>
       <div className="flex flex-col gap-3">
         {items.map((item) => (

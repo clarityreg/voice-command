@@ -1,4 +1,6 @@
 export type Source = "gmail" | "outlook" | "slack" | "asana" | "plane";
+
+export const SOURCES: (Source | "all")[] = ["all", "gmail", "outlook", "slack", "asana", "plane"];
 export type NotificationType = "email" | "message" | "task_update" | "task_assigned" | "mention" | "comment" | "reminder";
 export type Priority = "urgent" | "high" | "normal" | "low";
 export type NotificationTriageStatus = "unread" | "read" | "snoozed" | "archived" | "actioned";
