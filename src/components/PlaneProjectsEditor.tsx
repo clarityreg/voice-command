@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getPlaneProjects,
   syncPlaneProjects,
@@ -57,10 +57,15 @@ export default function PlaneProjectsEditor() {
     setEditValue(alias);
   };
 
+  const savingRef = useRef(false);
+
   const handleSaveAlias = async (oldAlias: string) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     const newAlias = editValue.trim().toLowerCase();
     if (!newAlias || newAlias === oldAlias) {
       setEditingAlias(null);
+      savingRef.current = false;
       return;
     }
     try {
@@ -74,6 +79,7 @@ export default function PlaneProjectsEditor() {
       setError(e instanceof Error ? e.message : "Failed to update alias");
     }
     setEditingAlias(null);
+    savingRef.current = false;
   };
 
   const handleDelete = async (alias: string) => {

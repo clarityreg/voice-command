@@ -14,7 +14,7 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3.2:3b"
 
 SYSTEM_PROMPT = """You are a voice command classifier for a task management app. Given a transcript, output JSON:
-{{"intent": "<type>", "params": {{"project_name": "...", "task_title": "...", "priority": "...", "task_ref": "..."}}}}}
+{{"intent": "<type>", "params": {{"project_name": "...", "task_title": "...", "priority": "...", "task_ref": "..."}}}}
 
 Intent types:
 - plane_create_task: user wants to create a new task/ticket in a project

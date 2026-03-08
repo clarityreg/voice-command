@@ -69,6 +69,7 @@ def _make_async_client(json_data: dict | None = None, raise_error: Exception | N
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_connect_success(configured_settings):
     """connect() returns True when /users/me succeeds."""
     mock_client, mock_response = _make_async_client(
@@ -84,6 +85,7 @@ async def test_connect_success(configured_settings):
     assert "/users/me" in call_url
 
 
+@pytest.mark.asyncio
 async def test_connect_returns_false_on_http_error(configured_settings):
     """connect() returns False when the API responds with an error status."""
     mock_client, mock_response = _make_async_client()
@@ -97,6 +99,7 @@ async def test_connect_returns_false_on_http_error(configured_settings):
     assert result is False
 
 
+@pytest.mark.asyncio
 async def test_connect_returns_false_on_network_error(configured_settings):
     """connect() returns False when a network-level error occurs."""
     mock_client, _ = _make_async_client(raise_error=httpx.ConnectError("unreachable"))
@@ -112,6 +115,7 @@ async def test_connect_returns_false_on_network_error(configured_settings):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_disconnect_is_noop(configured_settings):
     """disconnect() completes without error (Asana has no persistent connection)."""
     svc = AsanaService()
@@ -123,6 +127,7 @@ async def test_disconnect_is_noop(configured_settings):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_fetch_recent_returns_notifications(configured_settings):
     """fetch_recent() converts API tasks into Notification objects."""
     tasks = [_make_task(), _make_task(gid="task-002", name="Second task")]
@@ -138,6 +143,7 @@ async def test_fetch_recent_returns_notifications(configured_settings):
     assert result[1].source_id == "task-002"
 
 
+@pytest.mark.asyncio
 async def test_fetch_recent_passes_correct_params(configured_settings):
     """fetch_recent() sends workspace GID and limit to the API."""
     mock_client, _ = _make_async_client(json_data={"data": []})
@@ -153,6 +159,7 @@ async def test_fetch_recent_passes_correct_params(configured_settings):
     assert params["assignee"] == "me"
 
 
+@pytest.mark.asyncio
 async def test_fetch_recent_returns_empty_on_error(configured_settings):
     """fetch_recent() returns an empty list when the API fails."""
     mock_client, _ = _make_async_client(raise_error=httpx.ConnectError("down"))
@@ -169,6 +176,7 @@ async def test_fetch_recent_returns_empty_on_error(configured_settings):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_listen_polls_and_emits(configured_settings):
     """listen() calls emit_notification for each returned task (one iteration)."""
     tasks = [_make_task()]
@@ -193,6 +201,7 @@ async def test_listen_polls_and_emits(configured_settings):
     assert emitted.source_id == "task-001"
 
 
+@pytest.mark.asyncio
 async def test_listen_handles_poll_error_gracefully(configured_settings):
     """listen() does not crash when the API returns an error; it sleeps and tries again."""
     mock_client, _ = _make_async_client(raise_error=httpx.ConnectError("down"))
@@ -214,6 +223,7 @@ async def test_listen_handles_poll_error_gracefully(configured_settings):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_create_task_posts_correctly(configured_settings):
     """create_task() sends title, notes, and project to the Asana API."""
     created = {"gid": "new-task", "name": "New Task"}
@@ -231,6 +241,7 @@ async def test_create_task_posts_correctly(configured_settings):
     assert "project-456" in payload["projects"]
 
 
+@pytest.mark.asyncio
 async def test_create_task_uses_provided_project_gid(configured_settings):
     """create_task() uses the explicitly-passed project_gid over the default."""
     mock_client, _ = _make_async_client(json_data={"data": {"gid": "t", "name": "T"}})
@@ -243,6 +254,7 @@ async def test_create_task_uses_provided_project_gid(configured_settings):
     assert "custom-project-gid" in payload["projects"]
 
 
+@pytest.mark.asyncio
 async def test_create_task_returns_none_on_error(configured_settings):
     """create_task() returns None when the API call fails."""
     mock_client, _ = _make_async_client(raise_error=httpx.ConnectError("down"))

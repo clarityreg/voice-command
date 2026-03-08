@@ -77,6 +77,8 @@ export interface AppSettings {
   posthog_api_key: string;
   posthog_project_id: string;
   posthog_host: string;
+  openai_api_key?: string;
+  stt_backend?: string;
   focus_minutes: number;
   break_minutes: number;
 }

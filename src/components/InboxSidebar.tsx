@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Source } from "@/lib/notificationTypes";
 import { SOURCE_CONFIG, SOURCES } from "@/lib/notificationTypes";
 import { syncEmails } from "@/lib/notificationApi";
@@ -18,17 +18,25 @@ interface InboxSidebarProps {
 export default function InboxSidebar({ activeFilter, onFilterChange, unreadCounts, searchQuery, onSearchChange }: InboxSidebarProps) {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const handleSync = async () => {
     setSyncing(true);
     setSyncResult(null);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
     try {
       const { synced } = await syncEmails();
       setSyncResult(`${synced} synced`);
-      setTimeout(() => setSyncResult(null), 3000);
+      timeoutRef.current = setTimeout(() => setSyncResult(null), 3000);
     } catch {
       setSyncResult("Sync failed");
-      setTimeout(() => setSyncResult(null), 3000);
+      timeoutRef.current = setTimeout(() => setSyncResult(null), 3000);
     }
     setSyncing(false);
   };

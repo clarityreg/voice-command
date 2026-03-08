@@ -1,13 +1,11 @@
 """Tests for SlackService — connection, message fetching, mapping, and error handling."""
 
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from clarity_backend.notifications.models import NotificationType, Priority, Source
 from clarity_backend.services.slack import SlackService
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -42,6 +40,7 @@ def _make_message(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_connect_success():
     """connect() returns True when auth_test() responds with ok=True."""
     svc = _make_service()
@@ -53,18 +52,18 @@ async def test_connect_success():
 
     with patch(
         "clarity_backend.services.slack.AsyncWebClient", return_value=mock_web_client
+    ), patch(
+        "clarity_backend.services.slack.SocketModeClient",
+        return_value=mock_socket_client,
     ):
-        with patch(
-            "clarity_backend.services.slack.SocketModeClient",
-            return_value=mock_socket_client,
-        ):
-            result = await svc.connect()
+        result = await svc.connect()
 
     assert result is True
     assert svc._web_client is mock_web_client
     assert svc._socket_client is mock_socket_client
 
 
+@pytest.mark.asyncio
 async def test_connect_returns_false_when_auth_fails():
     """connect() returns False when auth_test() responds with ok=False."""
     svc = _make_service()
@@ -74,13 +73,13 @@ async def test_connect_returns_false_when_auth_fails():
 
     with patch(
         "clarity_backend.services.slack.AsyncWebClient", return_value=mock_web_client
-    ):
-        with patch("clarity_backend.services.slack.SocketModeClient", return_value=MagicMock()):
-            result = await svc.connect()
+    ), patch("clarity_backend.services.slack.SocketModeClient", return_value=MagicMock()):
+        result = await svc.connect()
 
     assert result is False
 
 
+@pytest.mark.asyncio
 async def test_connect_returns_false_on_exception():
     """connect() returns False when auth_test() raises an exception."""
     svc = _make_service()
@@ -90,9 +89,8 @@ async def test_connect_returns_false_on_exception():
 
     with patch(
         "clarity_backend.services.slack.AsyncWebClient", return_value=mock_web_client
-    ):
-        with patch("clarity_backend.services.slack.SocketModeClient", return_value=MagicMock()):
-            result = await svc.connect()
+    ), patch("clarity_backend.services.slack.SocketModeClient", return_value=MagicMock()):
+        result = await svc.connect()
 
     assert result is False
 
@@ -102,6 +100,7 @@ async def test_connect_returns_false_on_exception():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_disconnect_closes_socket_client():
     """disconnect() calls close() on the socket client."""
     svc = _make_service()
@@ -114,6 +113,7 @@ async def test_disconnect_closes_socket_client():
     mock_socket.close.assert_awaited_once()
 
 
+@pytest.mark.asyncio
 async def test_disconnect_removes_event_handler():
     """disconnect() removes the registered handler from listeners list."""
     svc = _make_service()
@@ -128,6 +128,7 @@ async def test_disconnect_removes_event_handler():
     assert handler not in mock_socket.socket_mode_request_listeners
 
 
+@pytest.mark.asyncio
 async def test_disconnect_does_nothing_when_no_socket_client():
     """disconnect() completes without error when _socket_client is None."""
     svc = _make_service()
@@ -140,6 +141,7 @@ async def test_disconnect_does_nothing_when_no_socket_client():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_fetch_recent_returns_empty_when_not_connected():
     """fetch_recent() returns [] when _web_client is None."""
     svc = _make_service()
@@ -147,6 +149,7 @@ async def test_fetch_recent_returns_empty_when_not_connected():
     assert result == []
 
 
+@pytest.mark.asyncio
 async def test_fetch_recent_returns_notifications_from_dm_channels():
     """fetch_recent() converts DM messages into Notification objects."""
     svc = _make_service()
@@ -175,6 +178,7 @@ async def test_fetch_recent_returns_notifications_from_dm_channels():
     assert result[0].source == Source.SLACK
 
 
+@pytest.mark.asyncio
 async def test_fetch_recent_returns_empty_on_complete_failure():
     """fetch_recent() returns [] when all API calls raise exceptions."""
     svc = _make_service()
@@ -187,6 +191,7 @@ async def test_fetch_recent_returns_empty_on_complete_failure():
     assert result == []
 
 
+@pytest.mark.asyncio
 async def test_fetch_recent_respects_limit():
     """fetch_recent() caps returned notifications at the requested limit."""
     svc = _make_service()
@@ -223,6 +228,7 @@ async def test_fetch_recent_respects_limit():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_message_to_notification_regular_channel_message():
     """_message_to_notification builds a correct Notification for a channel message."""
     svc = _make_service()
@@ -250,6 +256,7 @@ async def test_message_to_notification_regular_channel_message():
     assert notif.priority == Priority.NORMAL
 
 
+@pytest.mark.asyncio
 async def test_message_to_notification_dm():
     """_message_to_notification sets title to 'DM from <sender>' for direct messages."""
     svc = _make_service()
@@ -270,6 +277,7 @@ async def test_message_to_notification_dm():
     assert notif.title == "DM from Bob"
 
 
+@pytest.mark.asyncio
 async def test_message_to_notification_mention_has_high_priority():
     """_message_to_notification sets HIGH priority and MENTION type for mentions."""
     svc = _make_service()
@@ -293,6 +301,7 @@ async def test_message_to_notification_mention_has_high_priority():
     assert notif.priority == Priority.HIGH
 
 
+@pytest.mark.asyncio
 async def test_message_to_notification_thread_id_set_for_threaded_reply():
     """_message_to_notification populates thread_id for messages in a thread."""
     svc = _make_service()
@@ -317,6 +326,7 @@ async def test_message_to_notification_thread_id_set_for_threaded_reply():
     assert notif.thread_id == "1741000000.000001"
 
 
+@pytest.mark.asyncio
 async def test_message_to_notification_body_truncated_to_500():
     """_message_to_notification truncates message body to 500 characters."""
     svc = _make_service()
@@ -337,6 +347,7 @@ async def test_message_to_notification_body_truncated_to_500():
     assert len(notif.body) <= 500
 
 
+@pytest.mark.asyncio
 async def test_message_to_notification_returns_none_on_exception():
     """_message_to_notification returns None when an unexpected error occurs."""
     svc = _make_service()
@@ -351,6 +362,7 @@ async def test_message_to_notification_returns_none_on_exception():
     assert notif is None
 
 
+@pytest.mark.asyncio
 async def test_message_to_notification_raw_payload_contains_channel_and_ts():
     """raw_payload includes channel_id and ts for reference."""
     svc = _make_service()
@@ -377,6 +389,7 @@ async def test_message_to_notification_raw_payload_contains_channel_and_ts():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_resolve_user_caches_result():
     """_resolve_user() returns the cached name on the second call."""
     svc = _make_service()
@@ -395,6 +408,7 @@ async def test_resolve_user_caches_result():
     mock_web_client.users_info.assert_awaited_once()  # second call hits cache
 
 
+@pytest.mark.asyncio
 async def test_resolve_user_falls_back_to_user_id_on_error():
     """_resolve_user() returns the user_id when the API call fails."""
     svc = _make_service()
@@ -407,6 +421,7 @@ async def test_resolve_user_falls_back_to_user_id_on_error():
     assert name == "U999"
 
 
+@pytest.mark.asyncio
 async def test_resolve_channel_caches_result():
     """_resolve_channel() returns the cached name on the second call."""
     svc = _make_service()

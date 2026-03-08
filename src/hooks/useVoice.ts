@@ -178,7 +178,12 @@ export function useVoice(): UseVoiceReturn {
       mediaStreamRef.current = stream;
       mediaChunksRef.current = [];
 
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : undefined;
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) mediaChunksRef.current.push(e.data);
       };

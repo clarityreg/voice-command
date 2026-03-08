@@ -32,6 +32,16 @@ async def get_notifications(
     }
 
 
+@router.get("/notifications/search")
+async def search_notifications_endpoint(
+    session: SessionDep, q: str = "", limit: int = 50, offset: int = 0
+):
+    if not q.strip():
+        return {"notifications": [], "query": q}
+    results = await search_notifications(session, q.strip(), limit=limit, offset=offset)
+    return {"notifications": results, "query": q}
+
+
 @router.post("/notifications/{notification_id}/action")
 async def action_notification(notification_id: str, action: NotificationAction, session: SessionDep):
     if action.action == "reply":
@@ -124,16 +134,6 @@ async def sync_emails(session: SessionDep):
             errors.append(f"{svc.source.value}:{svc.account}: {e}")
 
     return {"synced": total_synced, "errors": errors}
-
-
-@router.get("/notifications/search")
-async def search_notifications_endpoint(
-    session: SessionDep, q: str = "", limit: int = 50, offset: int = 0
-):
-    if not q.strip():
-        return {"notifications": [], "query": q}
-    results = await search_notifications(session, q.strip(), limit=limit, offset=offset)
-    return {"notifications": results, "query": q}
 
 
 @router.post("/tasks")

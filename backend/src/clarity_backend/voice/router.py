@@ -4,7 +4,7 @@ import io
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -64,7 +64,10 @@ async def transcribe_audio(audio: UploadFile = File(...)) -> TranscribeResponse:
     """Transcribe audio using OpenAI Whisper API with project-name hints."""
     api_key = _get_openai_key()
     if not api_key:
-        raise httpx.HTTPError("OpenAI API key not configured. Set it in Settings.")
+        raise HTTPException(
+            status_code=400,
+            detail="OpenAI API key not configured. Set it in Settings.",
+        )
 
     audio_bytes = await audio.read()
     prompt = _get_whisper_prompt()
@@ -83,7 +86,10 @@ async def transcribe_audio(audio: UploadFile = File(...)) -> TranscribeResponse:
             data={"model": "whisper-1", "language": "en", **({"prompt": prompt} if prompt else {})},
         )
         if resp.status_code != 200:
-            raise httpx.HTTPError(f"OpenAI Whisper API error {resp.status_code}: {resp.text}")
+            raise HTTPException(
+                status_code=resp.status_code,
+                detail=f"OpenAI Whisper API error: {resp.text[:200]}",
+            )
 
         text = resp.json().get("text", "").strip()
 

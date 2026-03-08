@@ -1,9 +1,10 @@
 """Tests for OutlookService — connection, message fetching, mapping, and error handling."""
 
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from clarity_backend.notifications.models import NotificationType, Priority, Source
+import pytest
+
+from clarity_backend.notifications.models import NotificationType, Source
 from clarity_backend.services.outlook import OutlookService
 
 
@@ -37,6 +38,7 @@ def _make_message(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_connect_with_credentials():
     """connect() returns True when credentials contain an access_token."""
     svc = _make_service()
@@ -45,20 +47,20 @@ async def test_connect_with_credentials():
     assert svc._access_token == "test-token"
 
 
+@pytest.mark.asyncio
 async def test_connect_with_no_credentials():
     """connect() returns False when credentials are None and token load fails."""
     svc = OutlookService("test@outlook.com", credentials=None)
     with patch(
-        "clarity_backend.services.outlook.OutlookService.connect",
+        "clarity_backend.auth.microsoft.load_tokens",
         new_callable=AsyncMock,
-        return_value=False,
+        return_value=None,
     ):
-        # Directly test with no credentials and no token loader
-        svc._credentials = None
         result = await svc.connect()
     assert result is False
 
 
+@pytest.mark.asyncio
 async def test_connect_exception_returns_false():
     """connect() returns False when an exception is raised."""
     svc = OutlookService("test@outlook.com", credentials=None)
@@ -76,6 +78,7 @@ async def test_connect_exception_returns_false():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_disconnect_clears_token():
     """disconnect() sets _access_token to None."""
     svc = _make_service()
@@ -89,6 +92,7 @@ async def test_disconnect_clears_token():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 async def test_fetch_recent_returns_empty_when_not_connected():
     """fetch_recent() returns [] when _access_token is None."""
     svc = OutlookService("test@outlook.com")
@@ -97,6 +101,7 @@ async def test_fetch_recent_returns_empty_when_not_connected():
     assert result == []
 
 
+@pytest.mark.asyncio
 async def test_fetch_recent_returns_notifications():
     """fetch_recent() converts Graph API messages into Notification objects."""
     svc = _make_service()
@@ -121,6 +126,7 @@ async def test_fetch_recent_returns_notifications():
     assert result[0].body == "Hello from Outlook"
 
 
+@pytest.mark.asyncio
 async def test_fetch_recent_returns_empty_on_error():
     """fetch_recent() returns [] when API call fails."""
     svc = _make_service()

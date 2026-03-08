@@ -48,6 +48,8 @@ class PlaneClient:
         project_id: str | None = None,
     ) -> dict:
         proj = project_id or self.project_id
+        if not proj:
+            raise ValueError("project_id is required")
         url = self._ws_url(f"/projects/{proj}/issues/")
         body = {
             "name": title,

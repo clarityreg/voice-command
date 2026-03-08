@@ -1,6 +1,7 @@
 import json
 from datetime import UTC, datetime
 
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -111,20 +112,24 @@ async def get_notification_by_id(session: AsyncSession, notification_id: str) ->
     record = await session.get(NotificationRecord, notification_id)
     if not record:
         return None
+    if auto_unsnooze(record, datetime.now(UTC)):
+        session.add(record)
+        await session.commit()
     return _record_to_dict(record)
 
 
 async def search_notifications(
     session: AsyncSession, query: str, limit: int = 50, offset: int = 0
 ) -> list[dict]:
-    """Search notifications by title, body, or sender_name."""
+    """Search notifications by title, body, or sender_name (case-insensitive)."""
+    query_lower = query.lower()
     stmt = (
         select(NotificationRecord)
         .where(
             NotificationRecord.triage_status != "archived",
-            (NotificationRecord.title.contains(query))
-            | (NotificationRecord.body.contains(query))
-            | (NotificationRecord.sender_name.contains(query)),
+            (func.lower(NotificationRecord.title).contains(query_lower))
+            | (func.lower(NotificationRecord.body).contains(query_lower))
+            | (func.lower(NotificationRecord.sender_name).contains(query_lower)),
         )
         .order_by(NotificationRecord.timestamp.desc())
         .offset(offset)

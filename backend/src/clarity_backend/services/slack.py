@@ -81,6 +81,8 @@ class SlackService(BaseService):
     async def _fetch_channel_messages(
         self, channel_id: str, notifications: list, is_dm: bool = False
     ):
+        if not self._web_client:
+            return
         try:
             history = await self._web_client.conversations_history(
                 channel=channel_id, limit=3

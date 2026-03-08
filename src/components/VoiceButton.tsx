@@ -16,32 +16,33 @@ export default function VoiceButton() {
   const config = stateConfig[state];
 
   return (
-    <div className="fixed bottom-20 right-4 z-50 flex flex-col items-end gap-2 md:hidden">
-      {lastResponse && (
-        <button
-          onClick={dismissResponse}
-          className="max-w-xs rounded-card bg-card-bg p-3 text-left text-sm text-bark shadow-card"
-        >
-          {lastResponse}
-        </button>
-      )}
-      <button
-        onClick={toggle}
-        disabled={state === "processing"}
-        aria-label={config.label}
-        className={`flex h-12 w-12 items-center justify-center rounded-full ${config.bg} text-cream shadow-lg transition hover:opacity-90 disabled:opacity-50 ${
-          config.pulse ? "animate-pulse" : ""
-        }`}
-      >
-        {state === "listening" ? (
-          <MicOnIcon />
-        ) : state === "processing" ? (
-          <SpinnerIcon />
-        ) : (
-          <MicIcon />
+    <>
+      <div className="fixed bottom-20 right-4 z-50 flex flex-col items-end gap-2 md:hidden">
+        {lastResponse && (
+          <button
+            onClick={dismissResponse}
+            className="max-w-xs rounded-card bg-card-bg p-3 text-left text-sm text-bark shadow-card"
+          >
+            {lastResponse}
+          </button>
         )}
-      </button>
-
+        <button
+          onClick={toggle}
+          disabled={state === "processing"}
+          aria-label={config.label}
+          className={`flex h-12 w-12 items-center justify-center rounded-full ${config.bg} text-cream shadow-lg transition hover:opacity-90 disabled:opacity-50 ${
+            config.pulse ? "animate-pulse" : ""
+          }`}
+        >
+          {state === "listening" ? (
+            <MicOnIcon />
+          ) : state === "processing" ? (
+            <SpinnerIcon />
+          ) : (
+            <MicIcon />
+          )}
+        </button>
+      </div>
       {pendingAction && (
         <ConfirmationCard
           action={pendingAction}
@@ -49,7 +50,7 @@ export default function VoiceButton() {
           onReject={rejectAction}
         />
       )}
-    </div>
+    </>
   );
 }
 

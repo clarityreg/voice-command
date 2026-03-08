@@ -28,12 +28,12 @@ function toForm(s: AppSettings): FormData {
     plane_api_key: s.plane_api_key,
     plane_workspace_slug: s.plane_workspace_slug,
     plane_project_id: s.plane_project_id,
-    openai_api_key: (s as Record<string, unknown>).openai_api_key as string ?? "",
-    stt_backend: (s as Record<string, unknown>).stt_backend as string ?? "web-speech",
+    openai_api_key: s.openai_api_key ?? "",
+    stt_backend: s.stt_backend ?? "web-speech",
     aikido_webhook_secret: s.aikido_webhook_secret,
-    posthog_api_key: (s as Record<string, unknown>).posthog_api_key as string ?? "",
-    posthog_project_id: (s as Record<string, unknown>).posthog_project_id as string ?? "",
-    posthog_host: (s as Record<string, unknown>).posthog_host as string ?? "https://eu.posthog.com",
+    posthog_api_key: s.posthog_api_key ?? "",
+    posthog_project_id: s.posthog_project_id ?? "",
+    posthog_host: s.posthog_host ?? "https://eu.posthog.com",
     focus_minutes: String(s.focus_minutes),
     break_minutes: String(s.break_minutes),
   };
@@ -61,7 +61,7 @@ export default function SettingsPage() {
     setSaving(true);
     setError(null);
     try {
-      const payload: Partial<AppSettings> & { openai_api_key?: string; stt_backend?: string } = {
+      const payload: Partial<AppSettings> = {
         plane_api_key: form.plane_api_key,
         plane_workspace_slug: form.plane_workspace_slug,
         plane_project_id: form.plane_project_id,

@@ -1,5 +1,7 @@
 import asyncio
 import secrets
+import time
+from collections import OrderedDict
 
 import httpx
 from google_auth_oauthlib.flow import Flow
@@ -15,8 +17,19 @@ GMAIL_SCOPES = [
     "https://www.googleapis.com/auth/gmail.send",
 ]
 
-# Maps state token → code_verifier (needed for PKCE token exchange)
-_pending_states: dict[str, str] = {}
+# Maps state token → (code_verifier, timestamp). TTL = 10 minutes.
+_STATE_TTL = 600
+_pending_states: OrderedDict[str, tuple[str, float]] = OrderedDict()
+
+
+def _cleanup_expired_states() -> None:
+    now = time.time()
+    while _pending_states:
+        _state, (_, ts) = next(iter(_pending_states.items()))
+        if now - ts > _STATE_TTL:
+            _pending_states.pop(_state)
+        else:
+            break
 
 
 def _make_client_config() -> dict:
@@ -32,6 +45,7 @@ def _make_client_config() -> dict:
 
 
 def build_auth_url() -> str:
+    _cleanup_expired_states()
     state = secrets.token_urlsafe(32)
     flow = Flow.from_client_config(
         _make_client_config(),
@@ -42,13 +56,19 @@ def build_auth_url() -> str:
         access_type="offline", prompt="consent", state=state
     )
     # Store the PKCE code_verifier so exchange_code() can use it
-    _pending_states[state] = flow.code_verifier
+    _pending_states[state] = (flow.code_verifier, time.time())
     return auth_url
 
 
 def validate_and_consume_state(state: str) -> str | None:
-    """Pop and return the code_verifier for this state, or None if invalid."""
-    return _pending_states.pop(state, None)
+    """Pop and return the code_verifier for this state, or None if invalid/expired."""
+    entry = _pending_states.pop(state, None)
+    if entry is None:
+        return None
+    verifier, ts = entry
+    if time.time() - ts > _STATE_TTL:
+        return None
+    return verifier
 
 
 async def exchange_code(code: str, code_verifier: str) -> dict:
