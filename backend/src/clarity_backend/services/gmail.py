@@ -204,6 +204,8 @@ class GmailService(BaseService):
         """Create 'Clarity/Actioned' label if it doesn't exist, return label ID."""
         if self._actioned_label_id:
             return self._actioned_label_id
+        if not self._gmail_client:
+            return None
         try:
             labels = await asyncio.get_event_loop().run_in_executor(
                 None,
@@ -235,6 +237,8 @@ class GmailService(BaseService):
 
     async def add_label(self, message_id: str) -> bool:
         """Add the 'Clarity/Actioned' label to a Gmail message."""
+        if not self._gmail_client:
+            return False
         try:
             label_id = await self._ensure_actioned_label()
             if not label_id:

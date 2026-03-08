@@ -46,9 +46,9 @@ describe("AccountManager", () => {
 
     await waitFor(() => {
       expect(screen.getByText("No Gmail accounts connected.")).toBeDefined();
+      expect(screen.getByText("No Outlook accounts connected.")).toBeDefined();
+      expect(screen.getByText("No services configured.")).toBeDefined();
     });
-    expect(screen.getByText("No Outlook accounts connected.")).toBeDefined();
-    expect(screen.getByText("No services configured.")).toBeDefined();
   });
 
   it("renders gmail accounts with connection indicators", async () => {
@@ -95,11 +95,11 @@ describe("AccountManager", () => {
 
     await waitFor(() => {
       expect(screen.getByText("posthog")).toBeDefined();
+      expect(screen.getByText("PostHog")).toBeDefined();
+      expect(screen.getByText("Connected")).toBeDefined();
+      expect(screen.getByText("slack")).toBeDefined();
+      expect(screen.getByText("Disconnected")).toBeDefined();
     });
-    expect(screen.getByText("PostHog")).toBeDefined();
-    expect(screen.getByText("Connected")).toBeDefined();
-    expect(screen.getByText("slack")).toBeDefined();
-    expect(screen.getByText("Disconnected")).toBeDefined();
   });
 
   it("calls removeGmailAccount on remove button click", async () => {

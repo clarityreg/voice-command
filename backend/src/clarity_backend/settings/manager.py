@@ -149,6 +149,9 @@ async def update_project_alias(alias: str, body: dict) -> dict:
     if not new_alias:
         return {"error": "Alias cannot be empty."}
 
+    if new_alias in projects and new_alias != alias:
+        return {"error": f"Alias '{new_alias}' already exists."}
+
     if alias in projects:
         # Rename alias
         entry = projects.pop(alias)

@@ -111,6 +111,8 @@ class OutlookService(BaseService):
 
     async def add_category(self, message_id: str, category: str = "Clarity - Actioned") -> bool:
         """Add a category to an Outlook message."""
+        if not self._access_token:
+            return False
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.get(

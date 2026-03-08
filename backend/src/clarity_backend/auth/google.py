@@ -1,5 +1,6 @@
 import asyncio
 import secrets
+import threading
 import time
 from collections import OrderedDict
 
@@ -18,7 +19,10 @@ GMAIL_SCOPES = [
 ]
 
 # Maps state token → (code_verifier, timestamp). TTL = 10 minutes.
+# Protected by _states_lock for thread-safety in single-process deployments.
+# NOTE: Not shared across processes — use Redis/DB for multi-worker setups.
 _STATE_TTL = 600
+_states_lock = threading.Lock()
 _pending_states: OrderedDict[str, tuple[str, float]] = OrderedDict()
 
 
@@ -45,7 +49,8 @@ def _make_client_config() -> dict:
 
 
 def build_auth_url() -> str:
-    _cleanup_expired_states()
+    with _states_lock:
+        _cleanup_expired_states()
     state = secrets.token_urlsafe(32)
     flow = Flow.from_client_config(
         _make_client_config(),
@@ -56,13 +61,15 @@ def build_auth_url() -> str:
         access_type="offline", prompt="consent", state=state
     )
     # Store the PKCE code_verifier so exchange_code() can use it
-    _pending_states[state] = (flow.code_verifier, time.time())
+    with _states_lock:
+        _pending_states[state] = (flow.code_verifier, time.time())
     return auth_url
 
 
 def validate_and_consume_state(state: str) -> str | None:
     """Pop and return the code_verifier for this state, or None if invalid/expired."""
-    entry = _pending_states.pop(state, None)
+    with _states_lock:
+        entry = _pending_states.pop(state, None)
     if entry is None:
         return None
     verifier, ts = entry

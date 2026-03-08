@@ -73,6 +73,7 @@ describe("whisper bridge", () => {
     mockInvoke.mockResolvedValueOnce(["Clarity", "Plane"]);
     const result = await getCustomVocab();
     expect(result).toEqual(["Clarity", "Plane"]);
+    expect(mockInvoke).toHaveBeenCalledWith("get_custom_vocab", undefined);
   });
 
   it("saveCustomVocab invokes save_custom_vocab", async () => {

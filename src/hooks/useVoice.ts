@@ -208,7 +208,7 @@ export function useVoice(): UseVoiceReturn {
     // Wait for the recorder to finish
     const blob = await new Promise<Blob>((resolve) => {
       recorder.onstop = () => {
-        resolve(new Blob(mediaChunksRef.current, { type: "audio/webm" }));
+        resolve(new Blob(mediaChunksRef.current, { type: recorder.mimeType || "audio/webm" }));
       };
       recorder.stop();
     });

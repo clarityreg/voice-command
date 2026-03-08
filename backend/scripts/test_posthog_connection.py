@@ -11,7 +11,7 @@ host = os.getenv("POSTHOG_HOST", "https://eu.posthog.com").rstrip("/")
 
 print(f"Host:       {host}")
 print(f"Project ID: {project_id or '(empty)'}")
-print(f"API Key:    {api_key[:8]}****" if len(api_key) > 8 else f"API Key:    {api_key or '(empty)'}")
+print(f"API Key:    {api_key[:8]}****" if len(api_key) >= 8 else f"API Key:    {api_key or '(empty)'}")
 print()
 
 if not api_key:

@@ -250,7 +250,7 @@ async def test_message_to_notification_regular_channel_message():
     assert notif.source_account == "test-workspace"
     assert notif.source_id == "C001:1741000000.000100"
     assert notif.notification_type == NotificationType.MESSAGE
-    assert notif.title == " #general"
+    assert notif.title == "#general"
     assert notif.body == "Hello channel"
     assert notif.sender_name == "Alice"
     assert notif.priority == Priority.NORMAL

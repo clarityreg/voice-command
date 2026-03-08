@@ -85,6 +85,10 @@ export default function PlaneProjectsEditor() {
   const handleDelete = async (alias: string) => {
     try {
       const data = await deleteProjectAlias(alias);
+      if ((data as Record<string, unknown>).error) {
+        setError((data as Record<string, unknown>).error as string);
+        return;
+      }
       setProjects(data.projects ?? {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to delete alias");

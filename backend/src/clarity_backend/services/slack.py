@@ -172,7 +172,7 @@ class SlackService(BaseService):
                 source_id=f"{channel_id}:{thread_ts}",
                 notification_type=ntype,
                 title=(
-                    f"{'@mention in' if is_mention else ''} #{channel_name}"
+                    f"{'@mention in ' if is_mention else ''}#{channel_name}"
                     if not is_dm
                     else f"DM from {sender_name}"
                 ),
