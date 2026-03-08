@@ -21,6 +21,7 @@ class GmailService(BaseService):
         self._gmail_client = None
         self._last_history_id: str | None = None
         self._seen_ids: set[str] = set()
+        self._actioned_label_id: str | None = None
         self._poll_interval = 30
 
     async def connect(self) -> bool:
@@ -197,6 +198,57 @@ class GmailService(BaseService):
             return True
         except Exception as e:
             print(f"[Gmail] Reply error: {e}")
+            return False
+
+    async def _ensure_actioned_label(self) -> str | None:
+        """Create 'Clarity/Actioned' label if it doesn't exist, return label ID."""
+        if self._actioned_label_id:
+            return self._actioned_label_id
+        try:
+            labels = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self._gmail_client.users().labels().list(userId="me").execute(),
+            )
+            for label in labels.get("labels", []):
+                if label["name"] == "Clarity/Actioned":
+                    self._actioned_label_id = label["id"]
+                    return label["id"]
+            result = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self._gmail_client.users()
+                .labels()
+                .create(
+                    userId="me",
+                    body={
+                        "name": "Clarity/Actioned",
+                        "labelListVisibility": "labelShow",
+                        "messageListVisibility": "show",
+                    },
+                )
+                .execute(),
+            )
+            self._actioned_label_id = result["id"]
+            return result["id"]
+        except Exception as e:
+            print(f"[Gmail] Error ensuring actioned label: {e}")
+            return None
+
+    async def add_label(self, message_id: str) -> bool:
+        """Add the 'Clarity/Actioned' label to a Gmail message."""
+        try:
+            label_id = await self._ensure_actioned_label()
+            if not label_id:
+                return False
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self._gmail_client.users()
+                .messages()
+                .modify(userId="me", id=message_id, body={"addLabelIds": [label_id]})
+                .execute(),
+            )
+            return True
+        except Exception as e:
+            print(f"[Gmail] Error adding label: {e}")
             return False
 
     async def _message_to_notification(self, message_id: str) -> Notification | None:

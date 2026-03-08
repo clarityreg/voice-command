@@ -109,6 +109,33 @@ class OutlookService(BaseService):
             print(f"[Outlook] Reply error: {e}")
             return False
 
+    async def add_category(self, message_id: str, category: str = "Clarity - Actioned") -> bool:
+        """Add a category to an Outlook message."""
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(
+                    f"{self.GRAPH_BASE}/me/messages/{message_id}",
+                    headers={"Authorization": f"Bearer {self._access_token}"},
+                    params={"$select": "categories"},
+                )
+                resp.raise_for_status()
+                existing = resp.json().get("categories", [])
+                if category in existing:
+                    return True
+                resp = await client.patch(
+                    f"{self.GRAPH_BASE}/me/messages/{message_id}",
+                    headers={
+                        "Authorization": f"Bearer {self._access_token}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"categories": [*existing, category]},
+                )
+                resp.raise_for_status()
+                return True
+        except Exception as e:
+            print(f"[Outlook] Error adding category: {e}")
+            return False
+
     def _message_to_notification(self, msg: dict) -> Notification:
         from_data = msg.get("from", {}).get("emailAddress", {})
         return Notification(

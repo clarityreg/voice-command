@@ -6,8 +6,10 @@ import NotificationCard from "@/components/NotificationCard";
 import NotificationDetail from "@/components/NotificationDetail";
 import TaskCreatorModal from "@/components/TaskCreatorModal";
 import { useNotifications } from "@/hooks/useNotifications";
-import { archiveNotification, markNotificationRead } from "@/lib/notificationApi";
+import { actionNotification, archiveNotification, markNotificationRead } from "@/lib/notificationApi";
 import { SOURCE_CONFIG, SOURCES } from "@/lib/notificationTypes";
+
+const ALL_CONFIG = { label: "All", icon: "📥" } as const;
 
 export default function InboxPage() {
   const {
@@ -22,6 +24,10 @@ export default function InboxPage() {
     setSelectedId,
     markRead,
     archive,
+    actioned,
+    loadMore,
+    hasMore,
+    loadingMore,
   } = useNotifications();
 
   const [showTaskCreator, setShowTaskCreator] = useState(false);
@@ -50,6 +56,14 @@ export default function InboxPage() {
       }
     },
     [archive, selectedNotification, setSelectedId],
+  );
+
+  const handleActioned = useCallback(
+    (id: string) => {
+      actioned(id);
+      actionNotification(id).catch(console.error);
+    },
+    [actioned],
   );
 
   const handleMobileBack = useCallback(() => {
@@ -101,6 +115,9 @@ export default function InboxPage() {
         case "a":
           if (selectedNotification) handleArchive(selectedNotification.id);
           break;
+        case "d":
+          if (selectedNotification) handleActioned(selectedNotification.id);
+          break;
         case "t":
           if (selectedNotification) setShowTaskCreator(true);
           break;
@@ -108,7 +125,7 @@ export default function InboxPage() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [notifications, selectedNotification, handleSelect, handleArchive, setActiveFilter]);
+  }, [notifications, selectedNotification, handleSelect, handleArchive, handleActioned, setActiveFilter]);
 
   return (
     <div className="flex h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)] gap-4">
@@ -126,7 +143,7 @@ export default function InboxPage() {
         <div className="flex gap-2 overflow-x-auto pb-2 lg:hidden shrink-0">
           {SOURCES.map((source) => {
             const isAll = source === "all";
-            const config = isAll ? { label: "All", icon: "📥" } : SOURCE_CONFIG[source];
+            const config = isAll ? ALL_CONFIG : SOURCE_CONFIG[source];
             const isActive = activeFilter === source;
             return (
               <button
@@ -155,15 +172,27 @@ export default function InboxPage() {
               {connected ? "No notifications" : "Waiting for connection..."}
             </div>
           ) : (
-            notifications.map((n) => (
-              <NotificationCard
-                key={n.id}
-                notification={n}
-                isSelected={selectedNotification?.id === n.id}
-                onSelect={handleSelect}
-                onArchive={handleArchive}
-              />
-            ))
+            <>
+              {notifications.map((n) => (
+                <NotificationCard
+                  key={n.id}
+                  notification={n}
+                  isSelected={selectedNotification?.id === n.id}
+                  onSelect={handleSelect}
+                  onArchive={handleArchive}
+                  onActioned={handleActioned}
+                />
+              ))}
+              {hasMore && (
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="mt-2 rounded-lg bg-cream px-3 py-2 text-xs font-medium text-bark-muted hover:bg-cream-dark disabled:opacity-50"
+                >
+                  {loadingMore ? "Loading..." : "Load More"}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -182,6 +211,7 @@ export default function InboxPage() {
           notification={selectedNotification}
           onClose={handleDetailClose}
           onArchive={handleArchive}
+          onActioned={handleActioned}
           onCreateTask={handleOpenTaskCreator}
         />
       </div>

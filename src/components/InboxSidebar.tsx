@@ -1,7 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import type { Source } from "@/lib/notificationTypes";
 import { SOURCE_CONFIG, SOURCES } from "@/lib/notificationTypes";
+import { syncEmails } from "@/lib/notificationApi";
+
+const ALL_CONFIG = { label: "All", color: "#6366f1", icon: "📥" } as const;
 
 interface InboxSidebarProps {
   activeFilter: Source | "all";
@@ -12,6 +16,23 @@ interface InboxSidebarProps {
 }
 
 export default function InboxSidebar({ activeFilter, onFilterChange, unreadCounts, searchQuery, onSearchChange }: InboxSidebarProps) {
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const { synced } = await syncEmails();
+      setSyncResult(`${synced} synced`);
+      setTimeout(() => setSyncResult(null), 3000);
+    } catch {
+      setSyncResult("Sync failed");
+      setTimeout(() => setSyncResult(null), 3000);
+    }
+    setSyncing(false);
+  };
+
   return (
     <div className="hidden lg:flex w-52 flex-col rounded-card bg-card-bg p-4 shadow-card shrink-0">
       {/* Search */}
@@ -20,14 +41,23 @@ export default function InboxSidebar({ activeFilter, onFilterChange, unreadCount
         value={searchQuery}
         onChange={(e) => onSearchChange(e.target.value)}
         placeholder="Search..."
-        className="mb-4 rounded-lg border border-cream-dark bg-cream-light px-3 py-2 text-sm text-bark outline-none focus:border-accent"
+        className="mb-2 rounded-lg border border-cream-dark bg-cream-light px-3 py-2 text-sm text-bark outline-none focus:border-accent"
       />
+
+      {/* Sync */}
+      <button
+        onClick={handleSync}
+        disabled={syncing}
+        className="mb-4 flex items-center justify-center gap-1.5 rounded-lg bg-cream px-3 py-1.5 text-xs font-medium text-bark hover:bg-cream-dark disabled:opacity-50"
+      >
+        {syncing ? "Syncing..." : syncResult || "↻ Sync Emails"}
+      </button>
 
       {/* Filters */}
       <div className="flex flex-col gap-1">
         {SOURCES.map((source, i) => {
           const isAll = source === "all";
-          const config = isAll ? { label: "All", color: "#6366f1", icon: "📥" } : SOURCE_CONFIG[source];
+          const config = isAll ? ALL_CONFIG : SOURCE_CONFIG[source];
           const count = isAll ? (unreadCounts.total || 0) : (unreadCounts[source] || 0);
           const isActive = activeFilter === source;
 

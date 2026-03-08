@@ -2,6 +2,7 @@
 
 import { useVoice } from "@/hooks/useVoice";
 import type { VoiceState } from "@/hooks/useVoice";
+import ConfirmationCard from "@/components/ConfirmationCard";
 
 const stateConfig: Record<VoiceState, { bg: string; label: string; pulse: boolean }> = {
   idle: { bg: "bg-nav-bg", label: "Speak", pulse: false },
@@ -11,7 +12,7 @@ const stateConfig: Record<VoiceState, { bg: string; label: string; pulse: boolea
 };
 
 export default function VoiceButton() {
-  const { state, lastResponse, toggle, dismissResponse } = useVoice();
+  const { state, lastResponse, pendingAction, toggle, dismissResponse, confirmAction, rejectAction } = useVoice();
   const config = stateConfig[state];
 
   return (
@@ -40,6 +41,14 @@ export default function VoiceButton() {
           <MicIcon />
         )}
       </button>
+
+      {pendingAction && (
+        <ConfirmationCard
+          action={pendingAction}
+          onConfirm={confirmAction}
+          onReject={rejectAction}
+        />
+      )}
     </div>
   );
 }

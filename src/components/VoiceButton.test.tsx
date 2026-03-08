@@ -4,6 +4,8 @@ import VoiceButton from "./VoiceButton";
 
 const mockToggle = vi.fn();
 const mockDismissResponse = vi.fn();
+const mockConfirmAction = vi.fn();
+const mockRejectAction = vi.fn();
 
 vi.mock("@/hooks/useVoice", () => ({
   useVoice: vi.fn(() => ({
@@ -11,8 +13,11 @@ vi.mock("@/hooks/useVoice", () => ({
     sttBackend: "web-speech" as const,
     lastResponse: null,
     audioLevel: 0,
+    pendingAction: null,
     toggle: mockToggle,
     dismissResponse: mockDismissResponse,
+    confirmAction: mockConfirmAction,
+    rejectAction: mockRejectAction,
   })),
 }));
 
@@ -26,8 +31,11 @@ beforeEach(() => {
     sttBackend: "web-speech",
     lastResponse: null,
     audioLevel: 0,
+    pendingAction: null,
     toggle: mockToggle,
     dismissResponse: mockDismissResponse,
+    confirmAction: mockConfirmAction,
+    rejectAction: mockRejectAction,
   });
 });
 
@@ -49,8 +57,11 @@ describe("VoiceButton", () => {
       sttBackend: "web-speech",
       lastResponse: null,
       audioLevel: 0.5,
+      pendingAction: null,
       toggle: mockToggle,
       dismissResponse: mockDismissResponse,
+      confirmAction: mockConfirmAction,
+      rejectAction: mockRejectAction,
     });
     render(<VoiceButton />);
     expect(screen.getByLabelText("Listening...")).toBeInTheDocument();
@@ -62,8 +73,11 @@ describe("VoiceButton", () => {
       sttBackend: "web-speech",
       lastResponse: null,
       audioLevel: 0,
+      pendingAction: null,
       toggle: mockToggle,
       dismissResponse: mockDismissResponse,
+      confirmAction: mockConfirmAction,
+      rejectAction: mockRejectAction,
     });
     render(<VoiceButton />);
     expect(screen.getByLabelText("Thinking...")).toBeDisabled();
@@ -75,8 +89,11 @@ describe("VoiceButton", () => {
       sttBackend: "web-speech",
       lastResponse: "Hello",
       audioLevel: 0,
+      pendingAction: null,
       toggle: mockToggle,
       dismissResponse: mockDismissResponse,
+      confirmAction: mockConfirmAction,
+      rejectAction: mockRejectAction,
     });
     render(<VoiceButton />);
     expect(screen.getByLabelText("Speaking...")).toBeInTheDocument();
@@ -88,8 +105,11 @@ describe("VoiceButton", () => {
       sttBackend: "web-speech",
       lastResponse: "2 items pending",
       audioLevel: 0,
+      pendingAction: null,
       toggle: mockToggle,
       dismissResponse: mockDismissResponse,
+      confirmAction: mockConfirmAction,
+      rejectAction: mockRejectAction,
     });
     render(<VoiceButton />);
     expect(screen.getByText("2 items pending")).toBeInTheDocument();

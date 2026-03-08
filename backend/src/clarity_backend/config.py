@@ -2,9 +2,25 @@ import os
 
 from pydantic_settings import BaseSettings
 
-# When dotenvx injects decrypted env vars, skip reading the encrypted .env file
-# directly — pydantic can't parse the encrypted values.
-_env_file = ".env" if not os.getenv("DOTENV_CONFIG") else None
+# Skip reading .env directly when dotenvx has already injected decrypted env vars,
+# or when the .env contains encrypted values pydantic can't parse.
+def _should_read_env_file() -> str | None:
+    if os.getenv("DOTENV_CONFIG"):
+        return None
+    env_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env")
+    try:
+        with open(env_path) as f:
+            for line in f:
+                if line.strip().startswith("#") or "=" not in line:
+                    continue
+                if "encrypted:" in line:
+                    return None
+    except OSError:
+        pass
+    return ".env"
+
+
+_env_file = _should_read_env_file()
 
 
 class Settings(BaseSettings):
@@ -13,8 +29,27 @@ class Settings(BaseSettings):
     PLANE_WORKSPACE_SLUG: str = ""
     PLANE_PROJECT_ID: str = ""
     PLANE_API_URL: str = "https://app.plane.so/api/v1"
+    OPENAI_API_KEY: str = ""
     AIKIDO_WEBHOOK_SECRET: str = ""
-    CORS_ORIGINS: list[str] = ["*"]
+    POSTHOG_API_KEY: str = ""
+    POSTHOG_PROJECT_ID: str = ""
+    POSTHOG_HOST: str = "https://eu.posthog.com"
+    POSTHOG_POLL_INTERVAL: int = 60
+    CORS_ORIGINS: str = '["*"]'
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Parse CORS_ORIGINS from JSON string or comma-separated values."""
+        import json
+
+        v = self.CORS_ORIGINS
+        try:
+            parsed = json.loads(v)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+        return [s.strip() for s in v.split(",") if s.strip()]
 
     # Google / Gmail OAuth
     GOOGLE_CLIENT_ID: str = ""

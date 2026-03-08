@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { isTauri, getCustomVocab, saveCustomVocab } from "@/lib/whisper";
+import { getPlaneProjects } from "@/lib/api";
 
 export default function VocabularyEditor() {
   const [terms, setTerms] = useState("");
@@ -32,6 +33,40 @@ export default function VocabularyEditor() {
     }
   }, [terms]);
 
+  const importProjectNames = useCallback(async () => {
+    try {
+      const data = await getPlaneProjects();
+      const projects = data.projects ?? {};
+      const existingTerms = new Set(
+        terms
+          .split("\n")
+          .map((l) => l.trim().toLowerCase())
+          .filter((l) => l.length > 0),
+      );
+
+      const newTerms: string[] = [];
+      for (const [alias, project] of Object.entries(projects)) {
+        if (!existingTerms.has(alias.toLowerCase())) {
+          newTerms.push(alias);
+        }
+        const name = project.name;
+        if (name && !existingTerms.has(name.toLowerCase())) {
+          newTerms.push(name);
+        }
+      }
+
+      if (newTerms.length > 0) {
+        const updated = terms.trim()
+          ? `${terms.trim()}\n${newTerms.join("\n")}`
+          : newTerms.join("\n");
+        setTerms(updated);
+        setSaved(false);
+      }
+    } catch {
+      // Best-effort import
+    }
+  }, [terms]);
+
   if (!isTauri()) return null;
 
   return (
@@ -58,6 +93,12 @@ export default function VocabularyEditor() {
           className="rounded-pill bg-nav-bg px-4 py-1.5 text-xs font-medium text-cream hover:opacity-90 disabled:opacity-50"
         >
           {saving ? "Saving..." : "Save Vocabulary"}
+        </button>
+        <button
+          onClick={importProjectNames}
+          className="rounded-pill bg-accent/20 px-4 py-1.5 text-xs font-medium text-accent hover:bg-accent/30"
+        >
+          Import Project Names
         </button>
         {saved && <span className="text-xs text-sev-low">Saved</span>}
       </div>

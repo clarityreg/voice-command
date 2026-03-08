@@ -38,7 +38,8 @@ def test_settings_defaults():
         s = config_mod.Settings()
 
     assert s.DATABASE_URL == "sqlite+aiosqlite:///./clarity.db"
-    assert s.CORS_ORIGINS == ["*"]
+    assert s.CORS_ORIGINS == '["*"]'
+    assert s.cors_origins_list == ["*"]
     assert s.GOOGLE_CLIENT_ID == ""
     assert s.PLANE_API_KEY == ""
     assert s.GOOGLE_REDIRECT_URI == "http://localhost:8070/auth/google/callback"
@@ -60,7 +61,7 @@ def test_settings_picks_up_env_vars():
         s = config_mod.Settings()
 
     assert s.GOOGLE_CLIENT_ID == "test-id-123"
-    assert s.CORS_ORIGINS == ["http://localhost:3070"]
+    assert s.cors_origins_list == ["http://localhost:3070"]
     assert s.PLANE_API_KEY == "plane-key-test"
 
 
@@ -77,4 +78,4 @@ def test_cors_origins_json_parsing():
         importlib.reload(config_mod)
         s = config_mod.Settings()
 
-    assert s.CORS_ORIGINS == ["http://localhost:3070", "http://localhost:3080"]
+    assert s.cors_origins_list == ["http://localhost:3070", "http://localhost:3080"]

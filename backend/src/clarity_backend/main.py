@@ -17,6 +17,7 @@ from clarity_backend.triage.routes import router as triage_router
 from clarity_backend.triage.unified import router as unified_triage_router
 from clarity_backend.voice.router import router as voice_router
 from clarity_backend.webhooks.aikido import router as aikido_router
+from clarity_backend.plane.routes import router as plane_router
 from clarity_backend.webhooks.posthog import router as posthog_router
 
 
@@ -42,8 +43,8 @@ app = FastAPI(title="Clarity Backend", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=settings.CORS_ORIGINS != ["*"],
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=settings.cors_origins_list != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -60,6 +61,7 @@ app.include_router(notification_router)
 app.include_router(auth_router)
 app.include_router(unified_triage_router)
 app.include_router(agent_router)
+app.include_router(plane_router)
 
 
 @app.websocket("/ws")

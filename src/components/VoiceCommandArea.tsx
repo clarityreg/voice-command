@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useVoice } from "@/hooks/useVoice";
 import type { VoiceState } from "@/hooks/useVoice";
+import ConfirmationCard from "@/components/ConfirmationCard";
 
 function WaveformBars({ level }: { level: number }) {
   // 5 bars with different multipliers for visual variety
@@ -70,7 +71,7 @@ const stateConfig: Record<VoiceState, { bg: string; label: string; pulse: boolea
 };
 
 export default function VoiceCommandArea({ pending }: { pending: number }) {
-  const { state, audioLevel, lastResponse, toggle, dismissResponse } = useVoice();
+  const { state, audioLevel, lastResponse, pendingAction, toggle, dismissResponse, confirmAction, rejectAction } = useVoice();
   const config = stateConfig[state];
 
   return (
@@ -143,6 +144,14 @@ export default function VoiceCommandArea({ pending }: { pending: number }) {
           </Link>
         </div>
       </div>
+
+      {pendingAction && (
+        <ConfirmationCard
+          action={pendingAction}
+          onConfirm={confirmAction}
+          onReject={rejectAction}
+        />
+      )}
     </div>
   );
 }

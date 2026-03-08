@@ -11,6 +11,7 @@ class ServiceRegistry:
         self.slack_services: list = []
         self.asana_service = None
         self.plane_service = None
+        self.posthog_service = None
 
     async def start_all(self):
         from sqlmodel.ext.asyncio.session import AsyncSession
@@ -87,6 +88,17 @@ class ServiceRegistry:
                 await self.asana_service.start()
             except ImportError:
                 print("  [Asana] httpx not available, skipping")
+
+        # PostHog (poll for error events)
+        if settings.POSTHOG_API_KEY and settings.POSTHOG_PROJECT_ID:
+            try:
+                from clarity_backend.services.posthog import PostHogPollerService
+
+                self.posthog_service = PostHogPollerService()
+                self.services.append(self.posthog_service)
+                await self.posthog_service.start()
+            except ImportError:
+                print("  [PostHog] poller service unavailable, skipping")
 
         # Plane (notification feed -- separate from triage PlaneClient)
         if settings.PLANE_API_KEY and settings.PLANE_API_URL:

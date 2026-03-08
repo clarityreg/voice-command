@@ -81,14 +81,14 @@ def auto_unsnooze(record: NotificationRecord, now: datetime | None = None) -> bo
 
 
 async def load_notifications(
-    session: AsyncSession, limit: int = 50, status_filter: str | None = None
+    session: AsyncSession, limit: int = 50, offset: int = 0, status_filter: str | None = None
 ) -> list[dict]:
     query = select(NotificationRecord).order_by(NotificationRecord.timestamp.desc())  # type: ignore[attr-defined]
     if status_filter:
         query = query.where(NotificationRecord.triage_status == status_filter)
     else:
         query = query.where(NotificationRecord.triage_status != "archived")
-    query = query.limit(limit)
+    query = query.offset(offset).limit(limit)
     result = await session.exec(query)
     records = result.all()
 
@@ -104,6 +104,34 @@ async def load_notifications(
     if dirty:
         await session.commit()
     return notifications
+
+
+async def get_notification_by_id(session: AsyncSession, notification_id: str) -> dict | None:
+    """Fetch a single notification record by ID."""
+    record = await session.get(NotificationRecord, notification_id)
+    if not record:
+        return None
+    return _record_to_dict(record)
+
+
+async def search_notifications(
+    session: AsyncSession, query: str, limit: int = 50, offset: int = 0
+) -> list[dict]:
+    """Search notifications by title, body, or sender_name."""
+    stmt = (
+        select(NotificationRecord)
+        .where(
+            NotificationRecord.triage_status != "archived",
+            (NotificationRecord.title.contains(query))
+            | (NotificationRecord.body.contains(query))
+            | (NotificationRecord.sender_name.contains(query)),
+        )
+        .order_by(NotificationRecord.timestamp.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await session.exec(stmt)
+    return [_record_to_dict(r) for r in result.all()]
 
 
 async def get_accounts_by_service(session: AsyncSession, service: str) -> list[dict]:

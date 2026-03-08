@@ -5,7 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from clarity_backend.database import get_session
-from clarity_backend.notifications.crud import load_notifications, update_triage_status
+from clarity_backend.notifications.crud import (
+    get_notification_by_id,
+    load_notifications,
+    search_notifications,
+    update_triage_status,
+)
 from clarity_backend.notifications.models import NotificationAction, TaskCreate
 from clarity_backend.notifications.ws import ws_manager
 
@@ -14,9 +19,17 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 @router.get("/notifications")
-async def get_notifications(session: SessionDep, limit: int = 50, status: str | None = None):
-    notifications = await load_notifications(session, limit=limit, status_filter=status)
-    return {"notifications": notifications}
+async def get_notifications(
+    session: SessionDep, limit: int = 50, offset: int = 0, status: str | None = None,
+):
+    notifications = await load_notifications(
+        session, limit=limit, offset=offset, status_filter=status,
+    )
+    return {
+        "notifications": notifications,
+        "offset": offset,
+        "has_more": len(notifications) == limit,
+    }
 
 
 @router.post("/notifications/{notification_id}/action")
@@ -67,8 +80,60 @@ async def action_notification(notification_id: str, action: NotificationAction, 
         await ws_manager.send_update(notification_id, {"triage_status": "snoozed", "snooze_minutes": minutes})
         return {"status": "snoozed", "minutes": minutes}
 
+    elif action.action == "actioned":
+        updated = await update_triage_status(session, notification_id, "actioned")
+        if not updated:
+            raise HTTPException(404, f"Notification {notification_id} not found")
+
+        record = await get_notification_by_id(session, notification_id)
+        if record and record["source"] in ("gmail", "outlook"):
+            from clarity_backend.notifications.models import Source
+            from clarity_backend.services.registry import registry
+
+            source_enum = Source(record["source"])
+            service = registry.get_service_for_reply(source_enum, record["source_account"])
+            if service:
+                if source_enum == Source.GMAIL:
+                    await service.add_label(record["source_id"])
+                elif source_enum == Source.OUTLOOK:
+                    await service.add_category(record["source_id"])
+
+        await ws_manager.send_update(notification_id, {"triage_status": "actioned"})
+        return {"status": "actioned"}
+
     else:
         raise HTTPException(400, f"Unknown action: {action.action}")
+
+
+@router.post("/sync")
+async def sync_emails(session: SessionDep):
+    """Trigger immediate sync of all connected email services."""
+    from clarity_backend.services.registry import registry
+
+    total_synced = 0
+    errors = []
+    for svc in [*registry.gmail_services, *registry.outlook_services]:
+        if not svc.is_connected:
+            continue
+        try:
+            notifications = await svc.fetch_recent(limit=50)
+            for n in notifications:
+                await svc.emit_notification(n)
+            total_synced += len(notifications)
+        except Exception as e:
+            errors.append(f"{svc.source.value}:{svc.account}: {e}")
+
+    return {"synced": total_synced, "errors": errors}
+
+
+@router.get("/notifications/search")
+async def search_notifications_endpoint(
+    session: SessionDep, q: str = "", limit: int = 50, offset: int = 0
+):
+    if not q.strip():
+        return {"notifications": [], "query": q}
+    results = await search_notifications(session, q.strip(), limit=limit, offset=offset)
+    return {"notifications": results, "query": q}
 
 
 @router.post("/tasks")

@@ -6,13 +6,19 @@ import NotificationSettings from "@/components/NotificationSettings";
 import TtsSettings from "@/components/TtsSettings";
 import WhisperSetup from "@/components/WhisperSetup";
 import VocabularyEditor from "@/components/VocabularyEditor";
+import PlaneProjectsEditor from "@/components/PlaneProjectsEditor";
 import { getSettings, updateSettings, type AppSettings } from "@/lib/api";
 
 type FormData = {
   plane_api_key: string;
   plane_workspace_slug: string;
   plane_project_id: string;
+  openai_api_key: string;
+  stt_backend: string;
   aikido_webhook_secret: string;
+  posthog_api_key: string;
+  posthog_project_id: string;
+  posthog_host: string;
   focus_minutes: string;
   break_minutes: string;
 };
@@ -22,7 +28,12 @@ function toForm(s: AppSettings): FormData {
     plane_api_key: s.plane_api_key,
     plane_workspace_slug: s.plane_workspace_slug,
     plane_project_id: s.plane_project_id,
+    openai_api_key: (s as Record<string, unknown>).openai_api_key as string ?? "",
+    stt_backend: (s as Record<string, unknown>).stt_backend as string ?? "web-speech",
     aikido_webhook_secret: s.aikido_webhook_secret,
+    posthog_api_key: (s as Record<string, unknown>).posthog_api_key as string ?? "",
+    posthog_project_id: (s as Record<string, unknown>).posthog_project_id as string ?? "",
+    posthog_host: (s as Record<string, unknown>).posthog_host as string ?? "https://eu.posthog.com",
     focus_minutes: String(s.focus_minutes),
     break_minutes: String(s.break_minutes),
   };
@@ -50,11 +61,16 @@ export default function SettingsPage() {
     setSaving(true);
     setError(null);
     try {
-      const payload: Partial<AppSettings> = {
+      const payload: Partial<AppSettings> & { openai_api_key?: string; stt_backend?: string } = {
         plane_api_key: form.plane_api_key,
         plane_workspace_slug: form.plane_workspace_slug,
         plane_project_id: form.plane_project_id,
+        openai_api_key: form.openai_api_key,
+        stt_backend: form.stt_backend,
         aikido_webhook_secret: form.aikido_webhook_secret,
+        posthog_api_key: form.posthog_api_key,
+        posthog_project_id: form.posthog_project_id,
+        posthog_host: form.posthog_host,
         focus_minutes: parseInt(form.focus_minutes, 10) || 25,
         break_minutes: parseInt(form.break_minutes, 10) || 5,
       };
@@ -111,6 +127,8 @@ export default function SettingsPage() {
               <Field label="Workspace Slug" value={form.plane_workspace_slug} onChange={(v) => handleChange("plane_workspace_slug", v)} />
               <Field label="Project ID" value={form.plane_project_id} onChange={(v) => handleChange("plane_project_id", v)} />
             </div>
+            <hr className="my-3 border-cream-dark" />
+            <PlaneProjectsEditor />
           </section>
 
           <section className="rounded-card bg-card-bg p-5 shadow-card">
@@ -118,6 +136,20 @@ export default function SettingsPage() {
               <span className="text-lg">{"\uD83D\uDEE1\uFE0F"}</span> Aikido Webhook
             </h3>
             <Field label="Webhook Secret" value={form.aikido_webhook_secret} type="password" onChange={(v) => handleChange("aikido_webhook_secret", v)} />
+          </section>
+
+          <section className="rounded-card bg-card-bg p-5 shadow-card">
+            <h3 className="mb-3 flex items-center gap-2 font-semibold text-bark">
+              <span className="text-lg">{"\uD83E\uDD94"}</span> PostHog
+            </h3>
+            <div className="flex flex-col gap-3">
+              <Field label="Personal API Key" value={form.posthog_api_key} type="password" onChange={(v) => handleChange("posthog_api_key", v)} />
+              <Field label="Project ID" value={form.posthog_project_id} onChange={(v) => handleChange("posthog_project_id", v)} />
+              <Field label="Host" value={form.posthog_host} onChange={(v) => handleChange("posthog_host", v)} />
+              <span className="text-[10px] text-bark-light">
+                Polls PostHog for error events every 60s. Errors appear in your triage queue.
+              </span>
+            </div>
           </section>
 
           <section className="rounded-card bg-card-bg p-5 shadow-card">
@@ -135,6 +167,25 @@ export default function SettingsPage() {
               <span className="text-lg">{"\uD83C\uDFA4"}</span> Voice Recognition
             </h3>
             <div className="flex flex-col gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-bark-muted">Speech-to-Text Backend</span>
+                <select
+                  value={form.stt_backend}
+                  onChange={(e) => handleChange("stt_backend", e.target.value)}
+                  className="rounded-lg border border-cream-dark bg-cream-light px-3 py-2 text-sm text-bark outline-none focus:border-accent"
+                >
+                  <option value="web-speech">Web Speech API (browser built-in)</option>
+                  <option value="openai-whisper">OpenAI Whisper (cloud, best accuracy)</option>
+                  <option value="whisper">Local Whisper (Tauri only)</option>
+                </select>
+                <span className="text-[10px] text-bark-light">
+                  OpenAI Whisper uses your project names to improve recognition accuracy.
+                </span>
+              </label>
+              {form.stt_backend === "openai-whisper" && (
+                <Field label="OpenAI API Key" value={form.openai_api_key} type="password" onChange={(v) => handleChange("openai_api_key", v)} />
+              )}
+              <hr className="border-cream-dark" />
               <TtsSettings />
               <hr className="border-cream-dark" />
               <WhisperSetup />

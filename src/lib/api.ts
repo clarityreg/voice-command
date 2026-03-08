@@ -74,6 +74,9 @@ export interface AppSettings {
   plane_workspace_slug: string;
   plane_project_id: string;
   aikido_webhook_secret: string;
+  posthog_api_key: string;
+  posthog_project_id: string;
+  posthog_host: string;
   focus_minutes: number;
   break_minutes: number;
 }
@@ -168,4 +171,69 @@ export function approveAgentPlan(jobId: string): Promise<AgentJob> {
 
 export function cancelAgentJob(jobId: string): Promise<AgentJob> {
   return apiFetch<AgentJob>(`/api/agent/jobs/${jobId}/cancel`, { method: "POST" });
+}
+
+// --- Plane task management ---
+
+export interface PendingAction {
+  action_type: "create_task" | "complete_task";
+  project_id: string;
+  project_name: string;
+  title?: string;
+  priority?: string;
+  task_ref?: string;
+  issue_id?: string;
+  state_id?: string;
+  sequence_id?: number;
+}
+
+export interface PlaneProjectEntry {
+  id: string;
+  name: string;
+  identifier: string;
+}
+
+export function confirmPlaneAction(action: PendingAction): Promise<{ response: string }> {
+  return apiFetch("/api/plane/confirm-action", {
+    method: "POST",
+    body: JSON.stringify(action),
+  });
+}
+
+export function getPlaneProjects(): Promise<{ projects: Record<string, PlaneProjectEntry> }> {
+  return apiFetch("/api/plane/projects");
+}
+
+export function syncPlaneProjects(): Promise<{ projects: Record<string, PlaneProjectEntry>; error?: string }> {
+  return apiFetch("/api/settings/plane/sync-projects", { method: "POST" });
+}
+
+export function updateProjectAlias(
+  oldAlias: string,
+  body: { new_alias: string; id?: string; name?: string; identifier?: string },
+): Promise<{ projects: Record<string, PlaneProjectEntry>; error?: string }> {
+  return apiFetch(`/api/settings/plane/projects/${encodeURIComponent(oldAlias)}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteProjectAlias(
+  alias: string,
+): Promise<{ projects: Record<string, PlaneProjectEntry> }> {
+  return apiFetch(`/api/settings/plane/projects/${encodeURIComponent(alias)}`, {
+    method: "DELETE",
+  });
+}
+
+export function processAudio(audioBlob: Blob): Promise<VoiceResponse> {
+  const form = new FormData();
+  form.append("audio", audioBlob, "audio.webm");
+  return fetch(`${API_BASE}/api/voice/process-audio`, {
+    method: "POST",
+    body: form,
+  }).then(async (res) => {
+    if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+    return res.json() as Promise<VoiceResponse>;
+  });
 }

@@ -13,6 +13,9 @@ from clarity_backend.voice.intent import (
     DISMISS_ITEM,
     FIX_ITEM,
     MORNING_BRIEF,
+    PLANE_COMPLETE_TASK,
+    PLANE_CREATE_TASK,
+    PLANE_LIST_TASKS,
     QUERY_ERRORS,
     QUERY_VULNS,
     READ_EMAILS,
@@ -37,6 +40,9 @@ TEMPLATES: dict[str, str] = {
     REPLY_MESSAGE: "I can't compose replies by voice yet. Open the inbox to reply.",
     ARCHIVE_NOTIFICATION: "Archived {count} notification{s}.",
     FIX_ITEM: "Starting a fix for item {item_id}. Claude is generating a plan.",
+    PLANE_CREATE_TASK: "I'll create a task in {project_name}: \"{title}\". Priority: {priority}. Please confirm.",
+    PLANE_COMPLETE_TASK: "I'll mark {task_ref} as done in {project_name}. Please confirm.",
+    PLANE_LIST_TASKS: "You have {count} task{s} in {project_name}. {summary}",
     UNKNOWN: "I didn't understand that. Try asking about errors, vulnerabilities, or your current status.",
 }
 
@@ -280,6 +286,149 @@ async def _handle_fix_item(intent: Intent, session: AsyncSession) -> dict:
     }
 
 
+def _get_project_resolver():
+    from clarity_backend.settings.manager import get_plane_projects
+    from clarity_backend.voice.project_resolver import ProjectResolver
+
+    return ProjectResolver(get_plane_projects())
+
+
+async def _handle_plane_create_task(intent: Intent, session: AsyncSession) -> dict:
+    project_name = intent.params.get("project_name", "")
+    task_title = intent.params.get("task_title", "")
+    priority = intent.params.get("priority", "none")
+
+    if not project_name:
+        return {"response": "Which project should I create the task in?", "data": {}}
+    if not task_title:
+        return {"response": f"What should the task be called in {project_name}?", "data": {}}
+
+    resolver = _get_project_resolver()
+    result = resolver.resolve(project_name)
+
+    # If offline resolution fails, try AI fallback
+    if not result.project_id and not result.alternatives:
+        result = await resolver.resolve_with_ai(project_name, task_title)
+
+    if not result.project_id:
+        if result.alternatives:
+            names = ", ".join(a["name"] for a in result.alternatives[:3])
+            return {"response": f"Did you mean {names}?", "data": {"alternatives": result.alternatives}}
+        return {"response": f"I don't know a project called {project_name}. Sync your projects in Settings.", "data": {}}
+
+    return {
+        "response": TEMPLATES[PLANE_CREATE_TASK].format(
+            project_name=result.project_name, title=task_title, priority=priority
+        ),
+        "data": {
+            "pending_action": {
+                "action_type": "create_task",
+                "project_id": result.project_id,
+                "project_name": result.project_name,
+                "title": task_title,
+                "priority": priority,
+            }
+        },
+    }
+
+
+async def _handle_plane_complete_task(intent: Intent, session: AsyncSession) -> dict:
+    task_ref = intent.params.get("task_ref", "")
+    if not task_ref:
+        return {"response": "Which task should I complete? Say the task identifier.", "data": {}}
+
+    # Try to parse project identifier and sequence number from task_ref
+    # e.g., "acme-42" or "ACME-42" or just "42 in acme"
+    import re
+
+    ref_match = re.match(r"([a-zA-Z]+)[- ](\d+)", task_ref)
+    if ref_match:
+        project_prefix = ref_match.group(1)
+        seq_id = int(ref_match.group(2))
+
+        # Resolve prefix to project
+        resolver = _get_project_resolver()
+        result = resolver.resolve(project_prefix)
+
+        if result.project_id:
+            return {
+                "response": TEMPLATES[PLANE_COMPLETE_TASK].format(
+                    task_ref=task_ref.upper(), project_name=result.project_name
+                ),
+                "data": {
+                    "pending_action": {
+                        "action_type": "complete_task",
+                        "project_id": result.project_id,
+                        "project_name": result.project_name,
+                        "task_ref": task_ref.upper(),
+                        "sequence_id": seq_id,
+                    }
+                },
+            }
+
+    return {
+        "response": f"I couldn't parse the task reference '{task_ref}'. Use the format PROJECT-NUMBER, like ACME-42.",
+        "data": {},
+    }
+
+
+async def _handle_plane_list_tasks(intent: Intent, session: AsyncSession) -> dict:
+    from clarity_backend.integrations.plane import PlaneClient
+    from clarity_backend.config import settings as env_settings
+    from clarity_backend.settings.manager import _read_settings, get_plane_projects
+
+    project_name = intent.params.get("project_name")
+    s = _read_settings()
+    api_key = s.get("plane_api_key") or env_settings.PLANE_API_KEY
+    workspace = s.get("plane_workspace_slug") or env_settings.PLANE_WORKSPACE_SLUG
+
+    if not api_key or not workspace:
+        return {"response": "Plane is not configured. Set up your API key in Settings.", "data": {}}
+
+    client = PlaneClient(api_key=api_key, workspace_slug=workspace, base_url=env_settings.PLANE_API_URL)
+
+    if project_name:
+        resolver = _get_project_resolver()
+        result = resolver.resolve(project_name)
+        if not result.project_id:
+            return {"response": f"I don't know a project called {project_name}.", "data": {}}
+        try:
+            items = await client.list_work_items(result.project_id, limit=5)
+            count = len(items)
+            summary = ". ".join(item.get("name", "Untitled")[:60] for item in items[:3])
+            return {
+                "response": TEMPLATES[PLANE_LIST_TASKS].format(
+                    count=count, s="" if count == 1 else "s",
+                    project_name=result.project_name, summary=summary or "No tasks."
+                ),
+                "data": {"tasks": items, "project_name": result.project_name},
+            }
+        except Exception as e:
+            return {"response": f"Failed to fetch tasks: {e}", "data": {}}
+    else:
+        # Show tasks across all projects — just count from first configured project
+        projects = get_plane_projects()
+        if not projects:
+            return {"response": "No projects configured. Sync your projects in Settings.", "data": {}}
+
+        total = 0
+        summaries = []
+        for alias, info in list(projects.items())[:3]:
+            try:
+                items = await client.list_work_items(info["id"], limit=5)
+                total += len(items)
+                if items:
+                    summaries.append(f"{info.get('name', alias)}: {len(items)} tasks")
+            except Exception:
+                continue
+
+        summary = ". ".join(summaries) if summaries else "No tasks found."
+        return {
+            "response": f"You have {total} task{'s' if total != 1 else ''} across your projects. {summary}",
+            "data": {"total": total},
+        }
+
+
 async def _handle_unknown(intent: Intent, session: AsyncSession) -> dict:
     return {"response": TEMPLATES[UNKNOWN], "data": {}}
 
@@ -297,6 +446,9 @@ HANDLERS = {
     REPLY_MESSAGE: _handle_reply_message,
     ARCHIVE_NOTIFICATION: _handle_archive_notification,
     FIX_ITEM: _handle_fix_item,
+    PLANE_CREATE_TASK: _handle_plane_create_task,
+    PLANE_COMPLETE_TASK: _handle_plane_complete_task,
+    PLANE_LIST_TASKS: _handle_plane_list_tasks,
     UNKNOWN: _handle_unknown,
 }
 

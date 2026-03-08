@@ -12,6 +12,7 @@ class Source(StrEnum):
     SLACK = "slack"
     ASANA = "asana"
     PLANE = "plane"
+    POSTHOG = "posthog"
 
 
 class NotificationType(StrEnum):
@@ -62,7 +63,10 @@ class Notification(BaseModel):
 
 class NotificationAction(BaseModel):
     notification_id: str
-    action: Literal["reply", "archive", "snooze", "mark_read", "create_task", "open_in_app"]
+    action: Literal[
+        "reply", "archive", "snooze", "mark_read",
+        "actioned", "create_task", "open_in_app",
+    ]
     payload: dict | None = None
 
 

@@ -9,6 +9,7 @@ interface NotificationDetailProps {
   notification: Notification | null;
   onClose: () => void;
   onArchive: (id: string) => void;
+  onActioned: (id: string) => void;
   onCreateTask: () => void;
 }
 
@@ -19,7 +20,7 @@ const SNOOZE_OPTIONS = [
   { minutes: 1440, label: "Tomorrow" },
 ];
 
-export default function NotificationDetail({ notification, onClose, onArchive, onCreateTask }: NotificationDetailProps) {
+export default function NotificationDetail({ notification, onClose, onArchive, onActioned, onCreateTask }: NotificationDetailProps) {
   const [replyText, setReplyText] = useState("");
   const [isReplying, setIsReplying] = useState(false);
   const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
@@ -55,6 +56,12 @@ export default function NotificationDetail({ notification, onClose, onArchive, o
     onClose();
   }, [notification, onArchive, onClose]);
 
+  const handleActioned = useCallback(() => {
+    if (!notification) return;
+    onActioned(notification.id);
+    onClose();
+  }, [notification, onActioned, onClose]);
+
   const handleSnooze = useCallback(async (minutes: number) => {
     if (!notification) return;
     await snoozeNotification(notification.id, minutes).catch(console.error);
@@ -72,7 +79,8 @@ export default function NotificationDetail({ notification, onClose, onArchive, o
   }
 
   const config = SOURCE_CONFIG[notification.source];
-  const canReply = notification.source === "gmail" || notification.source === "outlook";
+  const isEmail = notification.source === "gmail" || notification.source === "outlook";
+  const isActioned = notification.triage_status === "actioned";
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden rounded-card bg-card-bg shadow-card">
@@ -83,6 +91,11 @@ export default function NotificationDetail({ notification, onClose, onArchive, o
             {config.icon} {config.label}
           </span>
           <span className="text-xs font-medium text-bark-light">{notification.source_account}</span>
+          {isActioned && (
+            <span className="rounded-pill bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">
+              ✓ Actioned
+            </span>
+          )}
         </div>
         <button onClick={onClose} className="rounded-lg px-2 py-1 text-sm font-medium text-bark-muted hover:bg-cream-dark">
           Close
@@ -114,6 +127,11 @@ export default function NotificationDetail({ notification, onClose, onArchive, o
 
       {/* Actions */}
       <div className="flex gap-2 border-t border-cream-dark p-4">
+        {isEmail && !isActioned && (
+          <button onClick={handleActioned} className="rounded-pill bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+            Actioned
+          </button>
+        )}
         <button onClick={handleArchive} className="rounded-pill bg-nav-bg px-4 py-2 text-sm font-medium text-cream hover:opacity-90">
           Archive
         </button>
@@ -137,7 +155,7 @@ export default function NotificationDetail({ notification, onClose, onArchive, o
       </div>
 
       {/* Reply */}
-      {canReply && (
+      {isEmail && (
         <div className="border-t border-cream-dark p-4">
           <textarea
             value={replyText}
