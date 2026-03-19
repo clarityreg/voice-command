@@ -75,14 +75,25 @@ async def transcribe_audio(audio: UploadFile = File(...)) -> TranscribeResponse:
     # Determine filename extension from content type
     ext = "webm"
     if audio.content_type:
-        type_map = {"audio/wav": "wav", "audio/webm": "webm", "audio/mp4": "mp4", "audio/ogg": "ogg"}
+        type_map = {
+            "audio/wav": "wav",
+            "audio/webm": "webm",
+            "audio/mp4": "mp4",
+            "audio/ogg": "ogg",
+        }
         ext = type_map.get(audio.content_type, "webm")
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
             "https://api.openai.com/v1/audio/transcriptions",
             headers={"Authorization": f"Bearer {api_key}"},
-            files={"file": (f"audio.{ext}", io.BytesIO(audio_bytes), audio.content_type or "audio/webm")},
+            files={
+                "file": (
+                    f"audio.{ext}",
+                    io.BytesIO(audio_bytes),
+                    audio.content_type or "audio/webm",
+                )
+            },
             data={"model": "whisper-1", "language": "en", **({"prompt": prompt} if prompt else {})},
         )
         if resp.status_code != 200:

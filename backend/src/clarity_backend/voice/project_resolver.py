@@ -125,8 +125,7 @@ class ProjectResolver:
             return ResolveResult()
 
         project_list = "\n".join(
-            f"  {alias} -> {info.get('name', alias)}"
-            for alias, info in self._projects.items()
+            f"  {alias} -> {info.get('name', alias)}" for alias, info in self._projects.items()
         )
         prompt = f"Spoken name: '{spoken_name}'"
         if transcript_context:

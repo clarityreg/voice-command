@@ -23,9 +23,7 @@ class AsanaService(BaseService):
     async def connect(self) -> bool:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.get(
-                    f"{self.BASE_URL}/users/me", headers=self._headers
-                )
+                resp = await client.get(f"{self.BASE_URL}/users/me", headers=self._headers)
                 resp.raise_for_status()
                 user = resp.json()["data"]
                 print(f"[Asana] Authenticated as {user['name']}")
@@ -129,9 +127,7 @@ class AsanaService(BaseService):
             project_name=project_name,
             priority=priority,
             timestamp=datetime.fromisoformat(
-                task.get("modified_at", datetime.utcnow().isoformat()).replace(
-                    "Z", "+00:00"
-                )
+                task.get("modified_at", datetime.utcnow().isoformat()).replace("Z", "+00:00")
             ),
             raw_payload={
                 "due_on": task.get("due_on"),

@@ -11,13 +11,14 @@ from clarity_backend.config import settings
 from clarity_backend.database import init_db
 from clarity_backend.integrations.routes import router as integrations_router
 from clarity_backend.notifications.routes import router as notification_router
+from clarity_backend.plane.routes import router as plane_router
 from clarity_backend.settings.manager import router as settings_router
 from clarity_backend.stats.routes import router as stats_router
 from clarity_backend.triage.routes import router as triage_router
 from clarity_backend.triage.unified import router as unified_triage_router
 from clarity_backend.voice.router import router as voice_router
 from clarity_backend.webhooks.aikido import router as aikido_router
-from clarity_backend.plane.routes import router as plane_router
+from clarity_backend.webhooks.clarity import router as clarity_webhook_router
 from clarity_backend.webhooks.posthog import router as posthog_router
 
 
@@ -62,6 +63,7 @@ app.include_router(auth_router)
 app.include_router(unified_triage_router)
 app.include_router(agent_router)
 app.include_router(plane_router)
+app.include_router(clarity_webhook_router)
 
 
 @app.websocket("/ws")

@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -11,7 +12,14 @@ SETTINGS_DIR = Path.home() / ".clarity"
 SETTINGS_FILE = SETTINGS_DIR / "settings.json"
 
 # Keys whose values are masked in GET responses
-SECRET_KEYS = {"plane_api_key", "aikido_webhook_secret", "openai_api_key", "posthog_api_key"}
+SECRET_KEYS = {
+    "plane_api_key",
+    "aikido_webhook_secret",
+    "openai_api_key",
+    "posthog_api_key",
+    "clarity_api_key",
+    "clarity_webhook_secret",
+}
 
 DEFAULT_SETTINGS: dict = {
     "plane_api_key": "",
@@ -27,6 +35,9 @@ DEFAULT_SETTINGS: dict = {
     "posthog_host": "https://eu.posthog.com",
     "focus_minutes": 25,
     "break_minutes": 5,
+    "clarity_api_url": "http://localhost:8000",
+    "clarity_api_key": "",
+    "clarity_webhook_secret": "",
 }
 
 
@@ -68,6 +79,9 @@ class SettingsUpdate(BaseModel):
     posthog_host: str | None = None
     focus_minutes: int | None = None
     break_minutes: int | None = None
+    clarity_api_url: str | None = None
+    clarity_api_key: str | None = None
+    clarity_webhook_secret: str | None = None
 
 
 @router.get("")

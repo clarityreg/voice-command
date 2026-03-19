@@ -74,6 +74,31 @@ export default function MorningBriefCard() {
           Top severity: <span className="font-medium text-bark">{brief.top_severity}</span>
         </p>
       )}
+      {brief.clarity_available && (
+        <div className="mt-3 border-t border-cream-dark pt-3">
+          <p className="mb-2 text-xs font-medium text-bark-muted">Clarity App</p>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            {brief.overdue_reviews != null && (
+              <div className="rounded-md bg-card-bg/60 px-3 py-2">
+                <span className="font-bold text-bark">{brief.overdue_reviews}</span>
+                <span className="ml-1 text-bark-muted">overdue reviews</span>
+              </div>
+            )}
+            {brief.pending_email_actions != null && (
+              <div className="rounded-md bg-card-bg/60 px-3 py-2">
+                <span className="font-bold text-bark">{brief.pending_email_actions}</span>
+                <span className="ml-1 text-bark-muted">email actions</span>
+              </div>
+            )}
+          </div>
+          {brief.approaching_deadlines && brief.approaching_deadlines.length > 0 && (
+            <div className="mt-2 text-xs text-bark-muted">
+              <span className="font-medium">Approaching:</span>{" "}
+              {brief.approaching_deadlines.join(", ")}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

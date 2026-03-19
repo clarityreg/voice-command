@@ -150,9 +150,7 @@ class OutlookService(BaseService):
             sender_name=from_data.get("name", from_data.get("address", "Unknown")),
             thread_id=msg.get("conversationId"),
             timestamp=datetime.fromisoformat(
-                msg.get("receivedDateTime", datetime.utcnow().isoformat()).replace(
-                    "Z", "+00:00"
-                )
+                msg.get("receivedDateTime", datetime.utcnow().isoformat()).replace("Z", "+00:00")
             ),
             raw_payload={"isRead": msg.get("isRead", False)},
         )

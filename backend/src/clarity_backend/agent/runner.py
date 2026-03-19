@@ -43,10 +43,10 @@ def _build_planning_prompt(item_dict: dict) -> str:
     return f"""You are a senior software engineer performing a root cause analysis.
 
 Triage item:
-  Title: {item_dict.get('title', 'Unknown')}
-  Source: {item_dict.get('source', 'Unknown')}
-  Severity: {item_dict.get('severity', 'unknown')}
-  Description: {item_dict.get('description', '')}
+  Title: {item_dict.get("title", "Unknown")}
+  Source: {item_dict.get("source", "Unknown")}
+  Severity: {item_dict.get("severity", "unknown")}
+  Description: {item_dict.get("description", "")}
 
 Investigate the codebase and produce a structured fix plan covering:
 1. ROOT CAUSE — explain why this error occurs
@@ -86,7 +86,10 @@ async def create_plan(job_id: str, session_factory: Any, item_dict: dict) -> Non
         session.add(job)
         await session.commit()
 
-    await _broadcast("agent_progress", {"job_id": job_id, "phase": "planning", "message": "Starting plan creation…"})
+    await _broadcast(
+        "agent_progress",
+        {"job_id": job_id, "phase": "planning", "message": "Starting plan creation…"},
+    )
 
     if not _CLAUDE_PATH:
         async with session_factory() as session:
@@ -97,7 +100,10 @@ async def create_plan(job_id: str, session_factory: Any, item_dict: dict) -> Non
                 job.updated_at = utcnow()
                 session.add(job)
                 await session.commit()
-        await _broadcast("agent_progress", {"job_id": job_id, "phase": "failed", "message": "Claude CLI not available"})
+        await _broadcast(
+            "agent_progress",
+            {"job_id": job_id, "phase": "failed", "message": "Claude CLI not available"},
+        )
         return
 
     prompt = _build_planning_prompt(item_dict)
@@ -106,9 +112,13 @@ async def create_plan(job_id: str, session_factory: Any, item_dict: dict) -> Non
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            _CLAUDE_PATH, "-p", prompt,
-            "--output-format", "stream-json",
-            "--allowedTools", "Read,Glob,Grep",
+            _CLAUDE_PATH,
+            "-p",
+            prompt,
+            "--output-format",
+            "stream-json",
+            "--allowedTools",
+            "Read,Glob,Grep",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -132,7 +142,9 @@ async def create_plan(job_id: str, session_factory: Any, item_dict: dict) -> Non
                         plan_text = event_data.get("result", "")
                     elif event_data.get("type") == "text":
                         plan_text += event_data.get("text", "")
-                await _broadcast("agent_progress", {"job_id": job_id, "phase": "planning", "event": event_data})
+                await _broadcast(
+                    "agent_progress", {"job_id": job_id, "phase": "planning", "event": event_data}
+                )
             except json.JSONDecodeError:
                 pass
 
@@ -150,7 +162,9 @@ async def create_plan(job_id: str, session_factory: Any, item_dict: dict) -> Non
                     job.updated_at = utcnow()
                     session.add(job)
                     await session.commit()
-            await _broadcast("agent_progress", {"job_id": job_id, "phase": "failed", "message": err_msg})
+            await _broadcast(
+                "agent_progress", {"job_id": job_id, "phase": "failed", "message": err_msg}
+            )
             return
 
         async with session_factory() as session:
@@ -163,7 +177,10 @@ async def create_plan(job_id: str, session_factory: Any, item_dict: dict) -> Non
                 session.add(job)
                 await session.commit()
 
-        await _broadcast("agent_progress", {"job_id": job_id, "phase": "plan_ready", "message": "Plan ready for review"})
+        await _broadcast(
+            "agent_progress",
+            {"job_id": job_id, "phase": "plan_ready", "message": "Plan ready for review"},
+        )
 
     except Exception as exc:
         async with session_factory() as session:
@@ -174,7 +191,9 @@ async def create_plan(job_id: str, session_factory: Any, item_dict: dict) -> Non
                 job.updated_at = utcnow()
                 session.add(job)
                 await session.commit()
-        await _broadcast("agent_progress", {"job_id": job_id, "phase": "failed", "message": str(exc)[:200]})
+        await _broadcast(
+            "agent_progress", {"job_id": job_id, "phase": "failed", "message": str(exc)[:200]}
+        )
 
 
 async def execute_plan(job_id: str, session_factory: Any) -> None:
@@ -200,7 +219,10 @@ async def execute_plan(job_id: str, session_factory: Any) -> None:
             job.updated_at = utcnow()
             session.add(job)
             await session.commit()
-            await _broadcast("agent_progress", {"job_id": job_id, "phase": "failed", "message": job.error_message})
+            await _broadcast(
+                "agent_progress",
+                {"job_id": job_id, "phase": "failed", "message": job.error_message},
+            )
             return
         plan_text = job.plan_text
         job.status = "running"
@@ -208,7 +230,9 @@ async def execute_plan(job_id: str, session_factory: Any) -> None:
         session.add(job)
         await session.commit()
 
-    await _broadcast("agent_progress", {"job_id": job_id, "phase": "running", "message": "Creating worktree…"})
+    await _broadcast(
+        "agent_progress", {"job_id": job_id, "phase": "running", "message": "Creating worktree…"}
+    )
 
     if not _CLAUDE_PATH:
         async with session_factory() as session:
@@ -219,7 +243,10 @@ async def execute_plan(job_id: str, session_factory: Any) -> None:
                 job.updated_at = utcnow()
                 session.add(job)
                 await session.commit()
-        await _broadcast("agent_progress", {"job_id": job_id, "phase": "failed", "message": "Claude CLI not available"})
+        await _broadcast(
+            "agent_progress",
+            {"job_id": job_id, "phase": "failed", "message": "Claude CLI not available"},
+        )
         return
 
     worktree_created = False
@@ -228,7 +255,12 @@ async def execute_plan(job_id: str, session_factory: Any) -> None:
     try:
         # Create git worktree
         wt_proc = await asyncio.create_subprocess_exec(
-            "git", "worktree", "add", worktree_path, "-b", branch_name,
+            "git",
+            "worktree",
+            "add",
+            worktree_path,
+            "-b",
+            branch_name,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -237,13 +269,24 @@ async def execute_plan(job_id: str, session_factory: Any) -> None:
             raise RuntimeError(f"git worktree add failed: {wt_stderr.decode()[:300]}")
         worktree_created = True
 
-        await _broadcast("agent_progress", {"job_id": job_id, "phase": "running", "message": f"Worktree ready on branch {branch_name}"})
+        await _broadcast(
+            "agent_progress",
+            {
+                "job_id": job_id,
+                "phase": "running",
+                "message": f"Worktree ready on branch {branch_name}",
+            },
+        )
 
         prompt = _build_execute_prompt(plan_text)
         proc = await asyncio.create_subprocess_exec(
-            _CLAUDE_PATH, "-p", prompt,
-            "--output-format", "stream-json",
-            "--allowedTools", "Edit,Write,Bash(git commit:*),Read,Glob,Grep",
+            _CLAUDE_PATH,
+            "-p",
+            prompt,
+            "--output-format",
+            "stream-json",
+            "--allowedTools",
+            "Edit,Write,Bash(git commit:*),Read,Glob,Grep",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=worktree_path,
@@ -267,7 +310,9 @@ async def execute_plan(job_id: str, session_factory: Any) -> None:
                 if isinstance(event_data, dict):
                     if event_data.get("type") == "result":
                         result_summary = event_data.get("result", "")
-                await _broadcast("agent_progress", {"job_id": job_id, "phase": "running", "event": event_data})
+                await _broadcast(
+                    "agent_progress", {"job_id": job_id, "phase": "running", "event": event_data}
+                )
             except json.JSONDecodeError:
                 pass
 
@@ -289,7 +334,15 @@ async def execute_plan(job_id: str, session_factory: Any) -> None:
                 session.add(job)
                 await session.commit()
 
-        await _broadcast("agent_progress", {"job_id": job_id, "phase": "completed", "branch": branch_name, "message": "Fix committed successfully"})
+        await _broadcast(
+            "agent_progress",
+            {
+                "job_id": job_id,
+                "phase": "completed",
+                "branch": branch_name,
+                "message": "Fix committed successfully",
+            },
+        )
 
     except Exception as exc:
         async with session_factory() as session:
@@ -301,12 +354,18 @@ async def execute_plan(job_id: str, session_factory: Any) -> None:
                 job.updated_at = utcnow()
                 session.add(job)
                 await session.commit()
-        await _broadcast("agent_progress", {"job_id": job_id, "phase": "failed", "message": str(exc)[:200]})
+        await _broadcast(
+            "agent_progress", {"job_id": job_id, "phase": "failed", "message": str(exc)[:200]}
+        )
 
     finally:
         if worktree_created:
             cleanup = await asyncio.create_subprocess_exec(
-                "git", "worktree", "remove", worktree_path, "--force",
+                "git",
+                "worktree",
+                "remove",
+                worktree_path,
+                "--force",
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )

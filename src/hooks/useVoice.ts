@@ -49,7 +49,7 @@ export function useVoice(): UseVoiceReturn {
       // Check if user has configured a preferred STT backend
       try {
         const settings = await getSettings();
-        const preferred = (settings as Record<string, unknown>).stt_backend as string | undefined;
+        const preferred = settings.stt_backend;
         if (preferred === "openai-whisper") {
           setSttBackend("openai-whisper");
           return;

@@ -99,7 +99,9 @@ async def approve_job(
     if not job:
         raise HTTPException(status_code=404, detail="Agent job not found")
     if job.status != "plan_ready":
-        raise HTTPException(status_code=400, detail=f"Job is in '{job.status}' state, expected 'plan_ready'")
+        raise HTTPException(
+            status_code=400, detail=f"Job is in '{job.status}' state, expected 'plan_ready'"
+        )
 
     job.status = "approved"
     job.updated_at = utcnow()

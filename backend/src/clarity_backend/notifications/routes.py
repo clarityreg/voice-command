@@ -20,10 +20,16 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 @router.get("/notifications")
 async def get_notifications(
-    session: SessionDep, limit: int = 50, offset: int = 0, status: str | None = None,
+    session: SessionDep,
+    limit: int = 50,
+    offset: int = 0,
+    status: str | None = None,
 ):
     notifications = await load_notifications(
-        session, limit=limit, offset=offset, status_filter=status,
+        session,
+        limit=limit,
+        offset=offset,
+        status_filter=status,
     )
     return {
         "notifications": notifications,
@@ -43,14 +49,18 @@ async def search_notifications_endpoint(
 
 
 @router.post("/notifications/{notification_id}/action")
-async def action_notification(notification_id: str, action: NotificationAction, session: SessionDep):
+async def action_notification(
+    notification_id: str, action: NotificationAction, session: SessionDep
+):
     if action.action == "reply":
         payload = action.payload or {}
         body = payload.get("body", "")
         source = payload.get("source")
         account = payload.get("source_account")
         if not source or not body or not account:
-            raise HTTPException(400, "Reply requires 'source', 'source_account', and 'body' in payload")
+            raise HTTPException(
+                400, "Reply requires 'source', 'source_account', and 'body' in payload"
+            )
 
         from clarity_backend.notifications.models import Source
         from clarity_backend.services.registry import registry
@@ -84,10 +94,14 @@ async def action_notification(notification_id: str, action: NotificationAction, 
     elif action.action == "snooze":
         minutes = (action.payload or {}).get("snooze_minutes", 30)
         snoozed_until = datetime.now(UTC) + timedelta(minutes=minutes)
-        updated = await update_triage_status(session, notification_id, "snoozed", snoozed_until=snoozed_until)
+        updated = await update_triage_status(
+            session, notification_id, "snoozed", snoozed_until=snoozed_until
+        )
         if not updated:
             raise HTTPException(404, f"Notification {notification_id} not found")
-        await ws_manager.send_update(notification_id, {"triage_status": "snoozed", "snooze_minutes": minutes})
+        await ws_manager.send_update(
+            notification_id, {"triage_status": "snoozed", "snooze_minutes": minutes}
+        )
         return {"status": "snoozed", "minutes": minutes}
 
     elif action.action == "actioned":

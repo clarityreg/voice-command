@@ -140,15 +140,11 @@ class PlaneNotifierService(BaseService):
             project_name=issue.get("project_detail", {}).get("name", ""),
             priority=priority,
             timestamp=datetime.fromisoformat(
-                issue.get("updated_at", datetime.utcnow().isoformat()).replace(
-                    "Z", "+00:00"
-                )
+                issue.get("updated_at", datetime.utcnow().isoformat()).replace("Z", "+00:00")
             ),
             raw_payload={
                 "state": issue.get("state_detail", {}).get("name"),
                 "sequence_id": issue.get("sequence_id"),
-                "labels": [
-                    label.get("name") for label in issue.get("label_detail", [])
-                ],
+                "labels": [label.get("name") for label in issue.get("label_detail", [])],
             },
         )

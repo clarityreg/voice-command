@@ -24,6 +24,7 @@ from clarity_backend.triage import (
     safe_metadata,
 )
 
+
 def _normalize_event(event: dict) -> dict:
     """Normalize events API format to match webhook format expected by triage helpers.
 
@@ -123,9 +124,7 @@ class PostHogPollerService(BaseService):
                 print(f"[PostHog] Polling error: {e}")
             await asyncio.sleep(self._poll_interval)
 
-    async def _fetch_events(
-        self, limit: int = 50, after: str | None = None
-    ) -> list[dict]:
+    async def _fetch_events(self, limit: int = 50, after: str | None = None) -> list[dict]:
         params: dict = {
             "event": "$exception",
             "limit": limit,

@@ -24,6 +24,16 @@ Intent types:
 - query_vulns: user asks about vulnerabilities/security
 - check_status: user asks for status/overview
 - morning_brief: user wants a daily summary/digest
+- clarity_schedule_status: user asks about schedule/product status
+- clarity_compliance: user asks about compliance for a client
+- clarity_parking_lot_add: user wants to capture/remember something (parking lot)
+- clarity_start_blitz: user wants to start a focus/blitz session
+- clarity_xp_status: user asks about XP/level/streak/gamification
+- clarity_run_email_review: user wants to run AI email review
+- clarity_upcoming_actions: user asks about upcoming actions/deadlines
+- clarity_rag_query: user asks about regulations or if something is allowed
+- clarity_ingredient_check: user asks if a specific ingredient is compliant
+- clarity_unified_inbox: user asks about priority/urgent items
 - unknown: you cannot determine the intent
 
 Available projects: {project_list}
@@ -41,7 +51,7 @@ async def classify_with_ai(text: str, project_names: list[str]) -> Intent | None
                 OLLAMA_URL,
                 json={
                     "model": OLLAMA_MODEL,
-                    "prompt": f"Classify this voice command: \"{text}\"",
+                    "prompt": f'Classify this voice command: "{text}"',
                     "system": SYSTEM_PROMPT.format(project_list=project_list),
                     "stream": False,
                     "format": "json",

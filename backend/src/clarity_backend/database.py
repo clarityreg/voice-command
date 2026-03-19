@@ -5,8 +5,8 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from clarity_backend.config import settings
 from clarity_backend.agent.models import AgentJob  # noqa: F401
+from clarity_backend.config import settings
 from clarity_backend.models import NotificationRecord, TokenStore, TriageItem  # noqa: F401
 
 engine = create_async_engine(

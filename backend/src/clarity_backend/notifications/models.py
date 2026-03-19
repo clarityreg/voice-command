@@ -13,6 +13,7 @@ class Source(StrEnum):
     ASANA = "asana"
     PLANE = "plane"
     POSTHOG = "posthog"
+    CLARITY = "clarity"
 
 
 class NotificationType(StrEnum):
@@ -23,6 +24,9 @@ class NotificationType(StrEnum):
     MENTION = "mention"
     COMMENT = "comment"
     REMINDER = "reminder"
+    SCHEDULE_UPDATE = "schedule_update"
+    COMPLIANCE_ALERT = "compliance_alert"
+    ACTION_POINT = "action_point"
 
 
 class Priority(StrEnum):
@@ -64,8 +68,13 @@ class Notification(BaseModel):
 class NotificationAction(BaseModel):
     notification_id: str
     action: Literal[
-        "reply", "archive", "snooze", "mark_read",
-        "actioned", "create_task", "open_in_app",
+        "reply",
+        "archive",
+        "snooze",
+        "mark_read",
+        "actioned",
+        "create_task",
+        "open_in_app",
     ]
     payload: dict | None = None
 
@@ -81,9 +90,17 @@ class TaskCreate(BaseModel):
 
 class WebSocketMessage(BaseModel):
     event: Literal[
-        "new_notification", "notification_updated", "notification_removed",
-        "connection_status", "error", "initial_load",
-        "agent_job_created", "agent_progress", "agent_plan_ready",
-        "agent_job_updated", "agent_completed", "agent_failed",
+        "new_notification",
+        "notification_updated",
+        "notification_removed",
+        "connection_status",
+        "error",
+        "initial_load",
+        "agent_job_created",
+        "agent_progress",
+        "agent_plan_ready",
+        "agent_job_updated",
+        "agent_completed",
+        "agent_failed",
     ]
     data: dict

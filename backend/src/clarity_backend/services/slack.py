@@ -49,13 +49,9 @@ class SlackService(BaseService):
         try:
             # Fetch DMs
             try:
-                dm_convos = await self._web_client.conversations_list(
-                    types="im,mpim", limit=10
-                )
+                dm_convos = await self._web_client.conversations_list(types="im,mpim", limit=10)
             except Exception:
-                dm_convos = await self._web_client.conversations_list(
-                    types="im", limit=10
-                )
+                dm_convos = await self._web_client.conversations_list(types="im", limit=10)
 
             for conv in dm_convos.get("channels", [])[:5]:
                 await self._fetch_channel_messages(conv["id"], notifications, is_dm=True)
@@ -65,9 +61,7 @@ class SlackService(BaseService):
                 chan_convos = await self._web_client.conversations_list(
                     types="public_channel,private_channel", limit=20
                 )
-                member_channels = [
-                    c for c in chan_convos.get("channels", []) if c.get("is_member")
-                ]
+                member_channels = [c for c in chan_convos.get("channels", []) if c.get("is_member")]
                 for conv in member_channels[:10]:
                     await self._fetch_channel_messages(conv["id"], notifications, is_dm=False)
             except Exception:
@@ -84,14 +78,10 @@ class SlackService(BaseService):
         if not self._web_client:
             return
         try:
-            history = await self._web_client.conversations_history(
-                channel=channel_id, limit=3
-            )
+            history = await self._web_client.conversations_history(channel=channel_id, limit=3)
             for msg in history.get("messages", []):
                 if msg.get("subtype") is None:
-                    notification = await self._message_to_notification(
-                        msg, channel_id, is_dm=is_dm
-                    )
+                    notification = await self._message_to_notification(msg, channel_id, is_dm=is_dm)
                     if notification:
                         notifications.append(notification)
         except Exception:

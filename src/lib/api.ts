@@ -63,6 +63,10 @@ export interface MorningBrief {
   actioned_yesterday: number;
   pending_total: number;
   top_severity: string | null;
+  overdue_reviews: number | null;
+  pending_email_actions: number | null;
+  approaching_deadlines: string[] | null;
+  clarity_available: boolean;
 }
 
 export function getMorningBrief(): Promise<MorningBrief> {
@@ -81,6 +85,9 @@ export interface AppSettings {
   stt_backend?: string;
   focus_minutes: number;
   break_minutes: number;
+  clarity_api_url?: string;
+  clarity_api_key?: string;
+  clarity_webhook_secret?: string;
 }
 
 export function getSettings(): Promise<AppSettings> {

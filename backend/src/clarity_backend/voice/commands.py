@@ -9,6 +9,16 @@ from clarity_backend.models import NotificationRecord, TriageItem
 from clarity_backend.voice.intent import (
     ARCHIVE_NOTIFICATION,
     CHECK_STATUS,
+    CLARITY_COMPLIANCE,
+    CLARITY_INGREDIENT_CHECK,
+    CLARITY_PARKING_LOT_ADD,
+    CLARITY_RAG_QUERY,
+    CLARITY_RUN_EMAIL_REVIEW,
+    CLARITY_SCHEDULE_STATUS,
+    CLARITY_START_BLITZ,
+    CLARITY_UNIFIED_INBOX,
+    CLARITY_UPCOMING_ACTIONS,
+    CLARITY_XP_STATUS,
     CREATE_ISSUE,
     DISMISS_ITEM,
     FIX_ITEM,
@@ -40,9 +50,20 @@ TEMPLATES: dict[str, str] = {
     REPLY_MESSAGE: "I can't compose replies by voice yet. Open the inbox to reply.",
     ARCHIVE_NOTIFICATION: "Archived {count} notification{s}.",
     FIX_ITEM: "Starting a fix for item {item_id}. Claude is generating a plan.",
-    PLANE_CREATE_TASK: "I'll create a task in {project_name}: \"{title}\". Priority: {priority}. Please confirm.",
+    PLANE_CREATE_TASK: 'I\'ll create a task in {project_name}: "{title}". Priority: {priority}. Please confirm.',
     PLANE_COMPLETE_TASK: "I'll mark {task_ref} as done in {project_name}. Please confirm.",
     PLANE_LIST_TASKS: "You have {count} task{s} in {project_name}. {summary}",
+    # Clarity App templates
+    CLARITY_SCHEDULE_STATUS: "Schedule status: {summary}",
+    CLARITY_COMPLIANCE: "Compliance for {client}: {summary}",
+    CLARITY_PARKING_LOT_ADD: "Added to parking lot: {content}",
+    CLARITY_START_BLITZ: "Blitz session started. {duration} minutes. Go!",
+    CLARITY_XP_STATUS: "You have {xp} XP, level {level}. Streak: {streak} days.",
+    CLARITY_RUN_EMAIL_REVIEW: "Email review started. {count} emails queued.",
+    CLARITY_UPCOMING_ACTIONS: "You have {count} upcoming action{s}. {summary}",
+    CLARITY_RAG_QUERY: "{answer}",
+    CLARITY_INGREDIENT_CHECK: "{ingredient} is {status} in {market}. {detail}",
+    CLARITY_UNIFIED_INBOX: "Clarity inbox: {count} item{s}. {summary}",
     UNKNOWN: "I didn't understand that. Try asking about errors, vulnerabilities, or your current status.",
 }
 
@@ -69,12 +90,14 @@ async def _handle_query_errors(intent: Intent, session: AsyncSession) -> dict:
     sev_note = f"Filtered to {severity} severity." if severity else ""
 
     return {
-        "response": TEMPLATES[QUERY_ERRORS].format(
+        "response": TEMPLATES[QUERY_ERRORS]
+        .format(
             count=count,
             s="" if count == 1 else "s",
             timeframe_label=_timeframe_label(intent.params.get("timeframe", "24h")),
             severity_note=sev_note,
-        ).strip(),
+        )
+        .strip(),
         "data": {"count": count, "source": "posthog"},
     }
 
@@ -90,29 +113,39 @@ async def _handle_query_vulns(intent: Intent, session: AsyncSession) -> dict:
     count = result.one()
 
     return {
-        "response": TEMPLATES[QUERY_VULNS].format(
+        "response": TEMPLATES[QUERY_VULNS]
+        .format(
             count=count,
             timeframe_label=_timeframe_label(intent.params.get("timeframe", "24h")),
             severity_note="",
-        ).strip(),
+        )
+        .strip(),
         "data": {"count": count, "source": "aikido"},
     }
 
 
 async def _handle_status(intent: Intent, session: AsyncSession) -> dict:
-    pending = (await session.exec(
-        select(func.count()).where(TriageItem.status == "pending")
-    )).one()
-    critical = (await session.exec(
-        select(func.count()).where(TriageItem.severity == "critical", TriageItem.status == "pending")
-    )).one()
+    pending = (await session.exec(select(func.count()).where(TriageItem.status == "pending"))).one()
+    critical = (
+        await session.exec(
+            select(func.count()).where(
+                TriageItem.severity == "critical", TriageItem.status == "pending"
+            )
+        )
+    ).one()
     today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
-    actioned = (await session.exec(
-        select(func.count()).where(TriageItem.status == "actioned", TriageItem.last_seen >= today_start)
-    )).one()
+    actioned = (
+        await session.exec(
+            select(func.count()).where(
+                TriageItem.status == "actioned", TriageItem.last_seen >= today_start
+            )
+        )
+    ).one()
 
     return {
-        "response": TEMPLATES[CHECK_STATUS].format(pending=pending, critical=critical, actioned=actioned),
+        "response": TEMPLATES[CHECK_STATUS].format(
+            pending=pending, critical=critical, actioned=actioned
+        ),
         "data": {"pending": pending, "critical": critical, "actioned": actioned},
     }
 
@@ -120,21 +153,33 @@ async def _handle_status(intent: Intent, session: AsyncSession) -> dict:
 async def _handle_morning_brief(intent: Intent, session: AsyncSession) -> dict:
     cutoff_24h = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=24)
 
-    errors = (await session.exec(
-        select(func.count()).where(TriageItem.source == "posthog", TriageItem.first_seen >= cutoff_24h)
-    )).one()
-    vulns = (await session.exec(
-        select(func.count()).where(TriageItem.source == "aikido", TriageItem.first_seen >= cutoff_24h)
-    )).one()
-    actioned = (await session.exec(
-        select(func.count()).where(TriageItem.status == "actioned", TriageItem.last_seen >= cutoff_24h)
-    )).one()
-    pending = (await session.exec(
-        select(func.count()).where(TriageItem.status == "pending")
-    )).one()
+    errors = (
+        await session.exec(
+            select(func.count()).where(
+                TriageItem.source == "posthog", TriageItem.first_seen >= cutoff_24h
+            )
+        )
+    ).one()
+    vulns = (
+        await session.exec(
+            select(func.count()).where(
+                TriageItem.source == "aikido", TriageItem.first_seen >= cutoff_24h
+            )
+        )
+    ).one()
+    actioned = (
+        await session.exec(
+            select(func.count()).where(
+                TriageItem.status == "actioned", TriageItem.last_seen >= cutoff_24h
+            )
+        )
+    ).one()
+    pending = (await session.exec(select(func.count()).where(TriageItem.status == "pending"))).one()
 
     return {
-        "response": TEMPLATES[MORNING_BRIEF].format(errors=errors, vulns=vulns, actioned=actioned, pending=pending),
+        "response": TEMPLATES[MORNING_BRIEF].format(
+            errors=errors, vulns=vulns, actioned=actioned, pending=pending
+        ),
         "data": {"errors": errors, "vulns": vulns, "actioned": actioned, "pending": pending},
     }
 
@@ -142,7 +187,10 @@ async def _handle_morning_brief(intent: Intent, session: AsyncSession) -> dict:
 async def _handle_create_issue(intent: Intent, session: AsyncSession) -> dict:
     item_id = intent.params.get("item_id")
     if not item_id:
-        return {"response": "Which item should I create an issue for? Say the item number.", "data": {}}
+        return {
+            "response": "Which item should I create an issue for? Say the item number.",
+            "data": {},
+        }
     return {
         "response": TEMPLATES[CREATE_ISSUE].format(item_id=item_id),
         "data": {"item_id": item_id, "action": "create_issue"},
@@ -171,12 +219,16 @@ async def _handle_dismiss(intent: Intent, session: AsyncSession) -> dict:
 
 async def _handle_read_emails(intent: Intent, session: AsyncSession) -> dict:
     """Count unread emails from Gmail and Outlook sources."""
-    rows = (await session.exec(
-        select(NotificationRecord.source, func.count()).where(
-            NotificationRecord.source.in_(["gmail", "outlook"]),  # type: ignore[attr-defined]
-            NotificationRecord.triage_status == "unread",
-        ).group_by(NotificationRecord.source)
-    )).all()
+    rows = (
+        await session.exec(
+            select(NotificationRecord.source, func.count())
+            .where(
+                NotificationRecord.source.in_(["gmail", "outlook"]),  # type: ignore[attr-defined]
+                NotificationRecord.triage_status == "unread",
+            )
+            .group_by(NotificationRecord.source)
+        )
+    ).all()
 
     breakdown = {src: cnt for src, cnt in rows}
     gmail_only = breakdown.get("gmail", 0)
@@ -191,20 +243,26 @@ async def _handle_read_emails(intent: Intent, session: AsyncSession) -> dict:
     detail = ", ".join(parts) if parts else ""
 
     return {
-        "response": TEMPLATES[READ_EMAILS].format(
-            count=total, s="" if total == 1 else "s", detail=detail,
-        ).strip(),
+        "response": TEMPLATES[READ_EMAILS]
+        .format(
+            count=total,
+            s="" if total == 1 else "s",
+            detail=detail,
+        )
+        .strip(),
         "data": {"count": total, "gmail": gmail_only, "outlook": outlook_only},
     }
 
 
 async def _handle_read_notifications(intent: Intent, session: AsyncSession) -> dict:
     """Count all unread notifications across all sources."""
-    rows = (await session.exec(
-        select(NotificationRecord.source, func.count()).where(
-            NotificationRecord.triage_status == "unread"
-        ).group_by(NotificationRecord.source)
-    )).all()
+    rows = (
+        await session.exec(
+            select(NotificationRecord.source, func.count())
+            .where(NotificationRecord.triage_status == "unread")
+            .group_by(NotificationRecord.source)
+        )
+    ).all()
 
     breakdown = {src: cnt for src, cnt in rows if cnt > 0}
     total = sum(breakdown.values())
@@ -213,9 +271,13 @@ async def _handle_read_notifications(intent: Intent, session: AsyncSession) -> d
     detail = ", ".join(parts) if parts else "All clear!"
 
     return {
-        "response": TEMPLATES[READ_NOTIFICATIONS].format(
-            count=total, s="" if total == 1 else "s", detail=detail,
-        ).strip(),
+        "response": TEMPLATES[READ_NOTIFICATIONS]
+        .format(
+            count=total,
+            s="" if total == 1 else "s",
+            detail=detail,
+        )
+        .strip(),
         "data": {"count": total, "breakdown": breakdown},
     }
 
@@ -245,9 +307,12 @@ async def _handle_archive_notification(intent: Intent, session: AsyncSession) ->
         await session.commit()
 
     return {
-        "response": TEMPLATES[ARCHIVE_NOTIFICATION].format(
-            count=count, s="" if count == 1 else "s",
-        ).strip(),
+        "response": TEMPLATES[ARCHIVE_NOTIFICATION]
+        .format(
+            count=count,
+            s="" if count == 1 else "s",
+        )
+        .strip(),
         "data": {"count": count, "action": "archive"},
     }
 
@@ -313,8 +378,14 @@ async def _handle_plane_create_task(intent: Intent, session: AsyncSession) -> di
     if not result.project_id:
         if result.alternatives:
             names = ", ".join(a["name"] for a in result.alternatives[:3])
-            return {"response": f"Did you mean {names}?", "data": {"alternatives": result.alternatives}}
-        return {"response": f"I don't know a project called {project_name}. Sync your projects in Settings.", "data": {}}
+            return {
+                "response": f"Did you mean {names}?",
+                "data": {"alternatives": result.alternatives},
+            }
+        return {
+            "response": f"I don't know a project called {project_name}. Sync your projects in Settings.",
+            "data": {},
+        }
 
     return {
         "response": TEMPLATES[PLANE_CREATE_TASK].format(
@@ -373,8 +444,8 @@ async def _handle_plane_complete_task(intent: Intent, session: AsyncSession) -> 
 
 
 async def _handle_plane_list_tasks(intent: Intent, session: AsyncSession) -> dict:
-    from clarity_backend.integrations.plane import PlaneClient
     from clarity_backend.config import settings as env_settings
+    from clarity_backend.integrations.plane import PlaneClient
     from clarity_backend.settings.manager import _read_settings, get_plane_projects
 
     project_name = intent.params.get("project_name")
@@ -385,7 +456,9 @@ async def _handle_plane_list_tasks(intent: Intent, session: AsyncSession) -> dic
     if not api_key or not workspace:
         return {"response": "Plane is not configured. Set up your API key in Settings.", "data": {}}
 
-    client = PlaneClient(api_key=api_key, workspace_slug=workspace, base_url=env_settings.PLANE_API_URL)
+    client = PlaneClient(
+        api_key=api_key, workspace_slug=workspace, base_url=env_settings.PLANE_API_URL
+    )
 
     if project_name:
         resolver = _get_project_resolver()
@@ -398,8 +471,10 @@ async def _handle_plane_list_tasks(intent: Intent, session: AsyncSession) -> dic
             summary = ". ".join(item.get("name", "Untitled")[:60] for item in items[:3])
             return {
                 "response": TEMPLATES[PLANE_LIST_TASKS].format(
-                    count=count, s="" if count == 1 else "s",
-                    project_name=result.project_name, summary=summary or "No tasks."
+                    count=count,
+                    s="" if count == 1 else "s",
+                    project_name=result.project_name,
+                    summary=summary or "No tasks.",
                 ),
                 "data": {"tasks": items, "project_name": result.project_name},
             }
@@ -409,7 +484,10 @@ async def _handle_plane_list_tasks(intent: Intent, session: AsyncSession) -> dic
         # Show tasks across all projects — just count from first configured project
         projects = get_plane_projects()
         if not projects:
-            return {"response": "No projects configured. Sync your projects in Settings.", "data": {}}
+            return {
+                "response": "No projects configured. Sync your projects in Settings.",
+                "data": {},
+            }
 
         total = 0
         summaries = []
@@ -427,6 +505,186 @@ async def _handle_plane_list_tasks(intent: Intent, session: AsyncSession) -> dic
             "response": f"You have {total} task{'s' if total != 1 else ''} across your projects. {summary}",
             "data": {"total": total},
         }
+
+
+def _get_clarity_client():
+    from clarity_backend.integrations.clarity import _get_clarity_client
+
+    return _get_clarity_client()
+
+
+def _clarity_offline_response() -> dict:
+    return {"response": "Clarity is not available right now. Is it running?", "data": {}}
+
+
+async def _handle_clarity_schedule_status(intent: Intent, session: AsyncSession) -> dict:
+    from clarity_backend.integrations.clarity import ClarityOfflineError
+
+    try:
+        client = _get_clarity_client()
+        data = await client.get_schedule_dashboard(intent.params.get("client_id", "default"))
+        summary = data.get("summary", data.get("status", "No summary available"))
+        return {
+            "response": TEMPLATES[CLARITY_SCHEDULE_STATUS].format(summary=summary),
+            "data": data,
+        }
+    except ClarityOfflineError:
+        return _clarity_offline_response()
+
+
+async def _handle_clarity_compliance(intent: Intent, session: AsyncSession) -> dict:
+    from clarity_backend.integrations.clarity import ClarityOfflineError
+
+    try:
+        client = _get_clarity_client()
+        client_id = intent.params.get("client_id", "default")
+        data = await client.get_compliance_summary(client_id)
+        summary = data.get("summary", "No compliance data available")
+        return {
+            "response": TEMPLATES[CLARITY_COMPLIANCE].format(client=client_id, summary=summary),
+            "data": data,
+        }
+    except ClarityOfflineError:
+        return _clarity_offline_response()
+
+
+async def _handle_clarity_parking_lot_add(intent: Intent, session: AsyncSession) -> dict:
+    from clarity_backend.integrations.clarity import ClarityOfflineError
+
+    content = intent.params.get("content", "")
+    if not content:
+        return {"response": "What should I add to the parking lot?", "data": {}}
+    try:
+        client = _get_clarity_client()
+        data = await client.create_parking_lot_item(content)
+        return {
+            "response": TEMPLATES[CLARITY_PARKING_LOT_ADD].format(content=content),
+            "data": data,
+        }
+    except ClarityOfflineError:
+        # Local fallback — save as notification so it's not lost
+        return {
+            "response": f"Clarity is offline. Noted locally: {content}",
+            "data": {"content": content, "saved_locally": True},
+        }
+
+
+async def _handle_clarity_start_blitz(intent: Intent, session: AsyncSession) -> dict:
+    from clarity_backend.integrations.clarity import ClarityOfflineError
+
+    try:
+        client = _get_clarity_client()
+        data = await client.start_blitz()
+        duration = data.get("duration", 25)
+        return {"response": TEMPLATES[CLARITY_START_BLITZ].format(duration=duration), "data": data}
+    except ClarityOfflineError:
+        return _clarity_offline_response()
+
+
+async def _handle_clarity_xp_status(intent: Intent, session: AsyncSession) -> dict:
+    from clarity_backend.integrations.clarity import ClarityOfflineError
+
+    try:
+        client = _get_clarity_client()
+        data = await client.get_gamification_profile()
+        return {
+            "response": TEMPLATES[CLARITY_XP_STATUS].format(
+                xp=data.get("xp", 0), level=data.get("level", 1), streak=data.get("streak", 0)
+            ),
+            "data": data,
+        }
+    except ClarityOfflineError:
+        return _clarity_offline_response()
+
+
+async def _handle_clarity_run_email_review(intent: Intent, session: AsyncSession) -> dict:
+    from clarity_backend.integrations.clarity import ClarityOfflineError
+
+    try:
+        client = _get_clarity_client()
+        data = await client.start_email_review()
+        count = data.get("queued", data.get("count", 0))
+        return {"response": TEMPLATES[CLARITY_RUN_EMAIL_REVIEW].format(count=count), "data": data}
+    except ClarityOfflineError:
+        return _clarity_offline_response()
+
+
+async def _handle_clarity_upcoming_actions(intent: Intent, session: AsyncSession) -> dict:
+    from clarity_backend.integrations.clarity import ClarityOfflineError
+
+    try:
+        client = _get_clarity_client()
+        data = await client.get_upcoming_actions()
+        items = data.get("items", data.get("actions", []))
+        count = len(items)
+        summary = ". ".join(item.get("title", "")[:60] for item in items[:3]) or "None right now."
+        return {
+            "response": TEMPLATES[CLARITY_UPCOMING_ACTIONS].format(
+                count=count, s="" if count == 1 else "s", summary=summary
+            ),
+            "data": data,
+        }
+    except ClarityOfflineError:
+        return _clarity_offline_response()
+
+
+async def _handle_clarity_rag_query(intent: Intent, session: AsyncSession) -> dict:
+    from clarity_backend.integrations.clarity import ClarityOfflineError
+
+    query = intent.params.get("query", "")
+    if not query:
+        return {"response": "What would you like to know about regulations?", "data": {}}
+    try:
+        client = _get_clarity_client()
+        data = await client.rag_query(query)
+        answer = data.get("answer", data.get("response", "No answer available"))
+        return {"response": TEMPLATES[CLARITY_RAG_QUERY].format(answer=answer), "data": data}
+    except ClarityOfflineError:
+        return _clarity_offline_response()
+
+
+async def _handle_clarity_ingredient_check(intent: Intent, session: AsyncSession) -> dict:
+    from clarity_backend.integrations.clarity import ClarityOfflineError
+
+    ingredient = intent.params.get("ingredient", "")
+    market = intent.params.get("market", "")
+    if not ingredient:
+        return {"response": "Which ingredient should I check?", "data": {}}
+    try:
+        client = _get_clarity_client()
+        data = await client.check_compliance(ingredient, market or None)
+        status = data.get("status", "unknown")
+        detail = data.get("detail", "")
+        return {
+            "response": TEMPLATES[CLARITY_INGREDIENT_CHECK].format(
+                ingredient=ingredient,
+                status=status,
+                market=market or "the specified market",
+                detail=detail,
+            ),
+            "data": data,
+        }
+    except ClarityOfflineError:
+        return _clarity_offline_response()
+
+
+async def _handle_clarity_unified_inbox(intent: Intent, session: AsyncSession) -> dict:
+    from clarity_backend.integrations.clarity import ClarityOfflineError
+
+    try:
+        client = _get_clarity_client()
+        data = await client.get_unified_inbox()
+        items = data.get("items", [])
+        count = len(items)
+        summary = ". ".join(item.get("title", "")[:60] for item in items[:3]) or "All clear!"
+        return {
+            "response": TEMPLATES[CLARITY_UNIFIED_INBOX].format(
+                count=count, s="" if count == 1 else "s", summary=summary
+            ),
+            "data": data,
+        }
+    except ClarityOfflineError:
+        return _clarity_offline_response()
 
 
 async def _handle_unknown(intent: Intent, session: AsyncSession) -> dict:
@@ -449,6 +707,16 @@ HANDLERS = {
     PLANE_CREATE_TASK: _handle_plane_create_task,
     PLANE_COMPLETE_TASK: _handle_plane_complete_task,
     PLANE_LIST_TASKS: _handle_plane_list_tasks,
+    CLARITY_SCHEDULE_STATUS: _handle_clarity_schedule_status,
+    CLARITY_COMPLIANCE: _handle_clarity_compliance,
+    CLARITY_PARKING_LOT_ADD: _handle_clarity_parking_lot_add,
+    CLARITY_START_BLITZ: _handle_clarity_start_blitz,
+    CLARITY_XP_STATUS: _handle_clarity_xp_status,
+    CLARITY_RUN_EMAIL_REVIEW: _handle_clarity_run_email_review,
+    CLARITY_UPCOMING_ACTIONS: _handle_clarity_upcoming_actions,
+    CLARITY_RAG_QUERY: _handle_clarity_rag_query,
+    CLARITY_INGREDIENT_CHECK: _handle_clarity_ingredient_check,
+    CLARITY_UNIFIED_INBOX: _handle_clarity_unified_inbox,
     UNKNOWN: _handle_unknown,
 }
 

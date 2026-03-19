@@ -57,9 +57,7 @@ def build_auth_url() -> str:
         scopes=GMAIL_SCOPES,
         redirect_uri=settings.GOOGLE_REDIRECT_URI,
     )
-    auth_url, _ = flow.authorization_url(
-        access_type="offline", prompt="consent", state=state
-    )
+    auth_url, _ = flow.authorization_url(access_type="offline", prompt="consent", state=state)
     # Store the PKCE code_verifier so exchange_code() can use it
     with _states_lock:
         _pending_states[state] = (flow.code_verifier, time.time())

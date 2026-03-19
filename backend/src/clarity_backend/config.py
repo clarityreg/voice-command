@@ -2,6 +2,7 @@ import os
 
 from pydantic_settings import BaseSettings
 
+
 # Skip reading .env directly when dotenvx has already injected decrypted env vars,
 # or when the .env contains encrypted values pydantic can't parse.
 def _should_read_env_file() -> str | None:
@@ -36,6 +37,11 @@ class Settings(BaseSettings):
     POSTHOG_HOST: str = "https://eu.posthog.com"
     POSTHOG_POLL_INTERVAL: int = 60
     CORS_ORIGINS: str = '["*"]'
+
+    # Clarity App integration
+    CLARITY_API_URL: str = "http://localhost:8000"
+    CLARITY_API_KEY: str = ""
+    CLARITY_WEBHOOK_SECRET: str = ""
 
     @property
     def cors_origins_list(self) -> list[str]:

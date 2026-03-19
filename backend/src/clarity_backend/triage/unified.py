@@ -35,18 +35,20 @@ async def get_unified_triage(
     triage_result = await session.exec(triage_query)
 
     for item in triage_result.all():
-        items.append({
-            "id": str(item.id),
-            "kind": "triage",
-            "source": item.source,
-            "title": item.title,
-            "description": item.description,
-            "severity": item.severity,
-            "status": item.status,
-            "timestamp": item.last_seen.isoformat() if item.last_seen else None,
-            "occurrence_count": item.occurrence_count,
-            "fingerprint": item.fingerprint,
-        })
+        items.append(
+            {
+                "id": str(item.id),
+                "kind": "triage",
+                "source": item.source,
+                "title": item.title,
+                "description": item.description,
+                "severity": item.severity,
+                "status": item.status,
+                "timestamp": item.last_seen.isoformat() if item.last_seen else None,
+                "occurrence_count": item.occurrence_count,
+                "fingerprint": item.fingerprint,
+            }
+        )
 
     # 2. Fetch unread/actionable notifications
     notif_sources = [s.value for s in Source]
@@ -73,19 +75,21 @@ async def get_unified_triage(
                 session.add(n)
                 dirty = True
 
-            items.append({
-                "id": n.id,
-                "kind": "notification",
-                "source": n.source,
-                "title": n.title,
-                "description": n.body,
-                "severity": _priority_to_severity(n.priority),
-                "status": n.triage_status,
-                "timestamp": n.timestamp.isoformat() if n.timestamp else None,
-                "sender_name": n.sender_name,
-                "notification_type": n.notification_type,
-                "is_actionable": n.is_actionable,
-            })
+            items.append(
+                {
+                    "id": n.id,
+                    "kind": "notification",
+                    "source": n.source,
+                    "title": n.title,
+                    "description": n.body,
+                    "severity": _priority_to_severity(n.priority),
+                    "status": n.triage_status,
+                    "timestamp": n.timestamp.isoformat() if n.timestamp else None,
+                    "sender_name": n.sender_name,
+                    "notification_type": n.notification_type,
+                    "is_actionable": n.is_actionable,
+                }
+            )
 
     if dirty:
         await session.commit()

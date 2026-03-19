@@ -11,7 +11,9 @@ import shutil
 _CLAUDE_PATH: str | None = shutil.which("claude")
 
 
-async def investigate(title: str, description: str, severity: str, source: str, metadata: dict) -> dict:
+async def investigate(
+    title: str, description: str, severity: str, source: str, metadata: dict
+) -> dict:
     """Investigate an error using Claude CLI subprocess.
 
     Returns a dict with keys: root_cause, affected_files, suggested_fix, raw_response.
@@ -24,7 +26,11 @@ async def investigate(title: str, description: str, severity: str, source: str, 
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            _CLAUDE_PATH, "-p", prompt, "--output-format", "json",
+            _CLAUDE_PATH,
+            "-p",
+            prompt,
+            "--output-format",
+            "json",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -44,7 +50,7 @@ async def investigate(title: str, description: str, severity: str, source: str, 
 
         return _parse_investigation(text, title)
 
-    except (asyncio.TimeoutError, OSError):
+    except (TimeoutError, OSError):
         return _fallback_result(title, description, severity, source)
 
 

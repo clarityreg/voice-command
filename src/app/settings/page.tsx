@@ -21,6 +21,9 @@ type FormData = {
   posthog_host: string;
   focus_minutes: string;
   break_minutes: string;
+  clarity_api_url: string;
+  clarity_api_key: string;
+  clarity_webhook_secret: string;
 };
 
 function toForm(s: AppSettings): FormData {
@@ -36,6 +39,9 @@ function toForm(s: AppSettings): FormData {
     posthog_host: s.posthog_host ?? "https://eu.posthog.com",
     focus_minutes: String(s.focus_minutes),
     break_minutes: String(s.break_minutes),
+    clarity_api_url: s.clarity_api_url ?? "http://localhost:8000",
+    clarity_api_key: s.clarity_api_key ?? "",
+    clarity_webhook_secret: s.clarity_webhook_secret ?? "",
   };
 }
 
@@ -73,6 +79,9 @@ export default function SettingsPage() {
         posthog_host: form.posthog_host,
         focus_minutes: parseInt(form.focus_minutes, 10) || 25,
         break_minutes: parseInt(form.break_minutes, 10) || 5,
+        clarity_api_url: form.clarity_api_url,
+        clarity_api_key: form.clarity_api_key,
+        clarity_webhook_secret: form.clarity_webhook_secret,
       };
       const updated = await updateSettings(payload);
       setForm(toForm(updated));
@@ -148,6 +157,20 @@ export default function SettingsPage() {
               <Field label="Host" value={form.posthog_host} onChange={(v) => handleChange("posthog_host", v)} />
               <span className="text-[10px] text-bark-light">
                 Polls PostHog for error events every 60s. Errors appear in your triage queue.
+              </span>
+            </div>
+          </section>
+
+          <section className="rounded-card bg-card-bg p-5 shadow-card">
+            <h3 className="mb-3 flex items-center gap-2 font-semibold text-bark">
+              <span className="text-lg">{"\uD83D\uDD17"}</span> Clarity App
+            </h3>
+            <div className="flex flex-col gap-3">
+              <Field label="API URL" value={form.clarity_api_url} onChange={(v) => handleChange("clarity_api_url", v)} />
+              <Field label="API Key" value={form.clarity_api_key} type="password" onChange={(v) => handleChange("clarity_api_key", v)} />
+              <Field label="Webhook Secret" value={form.clarity_webhook_secret} type="password" onChange={(v) => handleChange("clarity_webhook_secret", v)} />
+              <span className="text-[10px] text-bark-light">
+                Connects voice commands to Clarity&apos;s regulatory platform (schedules, compliance, ADHD Bridge).
               </span>
             </div>
           </section>

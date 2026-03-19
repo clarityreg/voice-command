@@ -11,7 +11,9 @@ class AgentJob(SQLModel, table=True):
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     triage_item_id: int
-    status: str = "planning"  # planning, plan_ready, approved, running, completed, failed, cancelled
+    status: str = (
+        "planning"  # planning, plan_ready, approved, running, completed, failed, cancelled
+    )
     plan_text: str | None = None
     result_summary: str | None = None
     branch_name: str | None = None
