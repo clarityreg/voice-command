@@ -34,6 +34,7 @@ CLARITY_RUN_EMAIL_REVIEW = "clarity_run_email_review"
 CLARITY_UPCOMING_ACTIONS = "clarity_upcoming_actions"
 CLARITY_RAG_QUERY = "clarity_rag_query"
 CLARITY_INGREDIENT_CHECK = "clarity_ingredient_check"
+CLARITY_REGULATION_LIMIT = "clarity_regulation_limit"
 CLARITY_UNIFIED_INBOX = "clarity_unified_inbox"
 
 UNKNOWN = "unknown"
@@ -62,6 +63,12 @@ INTENT_PATTERNS: list[tuple[str, str]] = [
     (r"(start|begin)\s+(a\s+)?blitz|focus\s+session|sprint\s+session", CLARITY_START_BLITZ),
     (r"review\s+(my\s+)?emails?|email\s+review|triage\s+emails?", CLARITY_RUN_EMAIL_REVIEW),
     (r"upcoming|due\s+soon|action\s+points?", CLARITY_UPCOMING_ACTIONS),
+    # Regulation limit — more specific than ingredient check; must come first.
+    # Matches: "what's the limit for vitamin D in France" / "limit of calcium in UK"
+    (
+        r"(?:what(?:'s|\s+is)\s+)?(?:the\s+)?limit\s+(?:for|of)\s+(?P<substance>[\w\s\-]+?)\s+in\s+(?P<country>[\w\s]+)",
+        CLARITY_REGULATION_LIMIT,
+    ),
     (r"regulation|regulatory|novel\s+food|is\s+\w+\s+allowed", CLARITY_RAG_QUERY),
     (r"ingredient|substance|allowed\s+in", CLARITY_INGREDIENT_CHECK),
     (r"unified\s+inbox|what.s\s+urgent|\burgent\b|priority\s+items?", CLARITY_UNIFIED_INBOX),
@@ -199,6 +206,17 @@ def _extract_params(text: str, intent_type: str) -> dict:
         )
         if m:
             params["content"] = m.group(1).strip()
+
+    elif intent_type == CLARITY_REGULATION_LIMIT:
+        # Extract substance and country from the regulation limit query.
+        # Pattern mirrors the INTENT_PATTERNS entry above.
+        m = re.search(
+            r"(?:what(?:'s|\s+is)\s+)?(?:the\s+)?limit\s+(?:for|of)\s+([\w\s\-]+?)\s+in\s+([\w\s]+)",
+            text,
+        )
+        if m:
+            params["substance"] = m.group(1).strip()
+            params["country"] = m.group(2).strip()
 
     elif intent_type == CLARITY_INGREDIENT_CHECK:
         # Extract ingredient and market: "is retinol allowed in germany"

@@ -40,7 +40,56 @@ async def _drain(stream: asyncio.StreamReader) -> bytes:
     return b"".join(chunks)
 
 
+def _extract_posthog_context(item_dict: dict) -> str:
+    """Return a formatted PostHog context block, or empty string if unavailable.
+
+    Parses the ``metadata_json`` field (a JSON string) that the PostHog poller
+    stores on every TriageItem.  Only fields that are non-empty are included so
+    the prompt stays clean when data is partial.
+    """
+    raw = item_dict.get("metadata_json", "{}")
+    if not raw:
+        return ""
+    try:
+        meta: dict = json.loads(raw) if isinstance(raw, str) else raw
+    except (json.JSONDecodeError, TypeError):
+        return ""
+
+    # PostHog stores the original event at top level; properties are nested.
+    props: dict = meta.get("properties", {})
+
+    lines: list[str] = []
+
+    current_url = props.get("$current_url", "")
+    if current_url:
+        lines.append(f"  Error URL: {current_url}")
+
+    distinct_id = meta.get("distinct_id", "")
+    if distinct_id:
+        lines.append(f"  Affected user: {distinct_id}")
+
+    exc_type = props.get("$exception_type", "")
+    if exc_type:
+        lines.append(f"  Exception type: {exc_type}")
+
+    browser = props.get("$browser", "")
+    os_name = props.get("$os", "")
+    if browser or os_name:
+        env_parts = [p for p in (browser, os_name) if p]
+        lines.append(f"  Client environment: {', '.join(env_parts)}")
+
+    if not lines:
+        return ""
+
+    return "\nPostHog session context:\n" + "\n".join(lines)
+
+
 def _build_planning_prompt(item_dict: dict) -> str:
+    occurrence_count = item_dict.get("occurrence_count", 1)
+    first_seen = item_dict.get("first_seen", "unknown")
+    last_seen = item_dict.get("last_seen", "unknown")
+    posthog_ctx = _extract_posthog_context(item_dict)
+
     return f"""You are a senior software engineer performing a root cause analysis.
 
 Triage item:
@@ -49,6 +98,9 @@ Triage item:
   Severity: {item_dict.get("severity", "unknown")}
   Description: {item_dict.get("description", "")}
 
+Error context:
+  Occurrences: {occurrence_count} (first seen: {first_seen}, last seen: {last_seen})
+{posthog_ctx}
 Investigate the codebase and produce a structured fix plan covering:
 1. ROOT CAUSE — explain why this error occurs
 2. FILES TO MODIFY — list each file path and what change is needed

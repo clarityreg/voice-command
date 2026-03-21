@@ -13,6 +13,7 @@ from clarity_backend.voice.intent import (
     CLARITY_INGREDIENT_CHECK,
     CLARITY_PARKING_LOT_ADD,
     CLARITY_RAG_QUERY,
+    CLARITY_REGULATION_LIMIT,
     CLARITY_RUN_EMAIL_REVIEW,
     CLARITY_SCHEDULE_STATUS,
     CLARITY_START_BLITZ,
@@ -63,6 +64,7 @@ TEMPLATES: dict[str, str] = {
     CLARITY_UPCOMING_ACTIONS: "You have {count} upcoming action{s}. {summary}",
     CLARITY_RAG_QUERY: "{answer}",
     CLARITY_INGREDIENT_CHECK: "{ingredient} is {status} in {market}. {detail}",
+    CLARITY_REGULATION_LIMIT: "The regulatory limit for {substance} in {country} is: {result}",
     CLARITY_UNIFIED_INBOX: "Clarity inbox: {count} item{s}. {summary}",
     UNKNOWN: "I didn't understand that. Try asking about errors, vulnerabilities, or your current status.",
 }
@@ -668,6 +670,33 @@ async def _handle_clarity_ingredient_check(intent: Intent, session: AsyncSession
         return _clarity_offline_response()
 
 
+async def _handle_clarity_regulation_limit(intent: Intent, session: AsyncSession) -> dict:
+    from clarity_backend.integrations.clarity import ClarityOfflineError
+
+    substance = intent.params.get("substance", "")
+    country = intent.params.get("country", "")
+
+    if not substance:
+        return {"response": "Which substance should I look up the limit for?", "data": {}}
+    if not country:
+        return {"response": f"Which country or market should I check the limit for {substance}?", "data": {}}
+
+    try:
+        client = _get_clarity_client()
+        data = await client.check_compliance(ingredient=substance, market=country)
+        result = data.get("limit", data.get("result", data.get("detail", "No limit data available")))
+        return {
+            "response": TEMPLATES[CLARITY_REGULATION_LIMIT].format(
+                substance=substance,
+                country=country,
+                result=result,
+            ),
+            "data": data,
+        }
+    except ClarityOfflineError:
+        return _clarity_offline_response()
+
+
 async def _handle_clarity_unified_inbox(intent: Intent, session: AsyncSession) -> dict:
     from clarity_backend.integrations.clarity import ClarityOfflineError
 
@@ -716,6 +745,7 @@ HANDLERS = {
     CLARITY_UPCOMING_ACTIONS: _handle_clarity_upcoming_actions,
     CLARITY_RAG_QUERY: _handle_clarity_rag_query,
     CLARITY_INGREDIENT_CHECK: _handle_clarity_ingredient_check,
+    CLARITY_REGULATION_LIMIT: _handle_clarity_regulation_limit,
     CLARITY_UNIFIED_INBOX: _handle_clarity_unified_inbox,
     UNKNOWN: _handle_unknown,
 }
