@@ -2,6 +2,16 @@
 
 import httpx
 
+from clarity_backend.utils.circuit_breaker import CircuitBreaker, CircuitOpenError
+
+# Module-level circuit breaker shared by all ClarityClient instances.
+# Opens after 3 consecutive network-level failures; resets after 60 s.
+_clarity_breaker: CircuitBreaker = CircuitBreaker(
+    "clarity-app",
+    failure_threshold=3,
+    reset_timeout=60.0,
+)
+
 
 class ClarityOfflineError(Exception):
     """Raised when the Clarity App is unreachable."""
@@ -17,30 +27,46 @@ class ClarityClient:
         return {"X-API-Key": self.api_key, "Content-Type": "application/json"}
 
     async def _get(self, path: str, params: dict | None = None) -> dict:
+        async def _do_get() -> dict:
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.get(
+                        f"{self.base_url}/{path.lstrip('/')}",
+                        headers=self._headers,
+                        params=params,
+                    )
+                    resp.raise_for_status()
+                    return resp.json()
+            except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+                raise ClarityOfflineError(str(e)) from e
+
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(
-                    f"{self.base_url}/{path.lstrip('/')}",
-                    headers=self._headers,
-                    params=params,
-                )
-                resp.raise_for_status()
-                return resp.json()
-        except (httpx.ConnectError, httpx.ConnectTimeout) as e:
-            raise ClarityOfflineError(str(e)) from e
+            return await _clarity_breaker.call(_do_get)
+        except CircuitOpenError as e:
+            raise ClarityOfflineError(
+                f"Clarity App circuit is open — too many recent failures. ({e})"
+            ) from e
 
     async def _post(self, path: str, json: dict | None = None) -> dict:
+        async def _do_post() -> dict:
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.post(
+                        f"{self.base_url}/{path.lstrip('/')}",
+                        headers=self._headers,
+                        json=json or {},
+                    )
+                    resp.raise_for_status()
+                    return resp.json()
+            except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+                raise ClarityOfflineError(str(e)) from e
+
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(
-                    f"{self.base_url}/{path.lstrip('/')}",
-                    headers=self._headers,
-                    json=json or {},
-                )
-                resp.raise_for_status()
-                return resp.json()
-        except (httpx.ConnectError, httpx.ConnectTimeout) as e:
-            raise ClarityOfflineError(str(e)) from e
+            return await _clarity_breaker.call(_do_post)
+        except CircuitOpenError as e:
+            raise ClarityOfflineError(
+                f"Clarity App circuit is open — too many recent failures. ({e})"
+            ) from e
 
     # --- Schedule & Compliance ---
 

@@ -19,13 +19,13 @@ pub struct DownloadProgress {
 }
 
 #[tauri::command]
-pub fn whisper_model_status(state: State<'_, ManagedWhisperState>) -> ModelStatus {
-    let s = state.lock().unwrap();
-    ModelStatus {
+pub fn whisper_model_status(state: State<'_, ManagedWhisperState>) -> Result<ModelStatus, String> {
+    let s = state.lock().map_err(|_| "Whisper state lock poisoned".to_string())?;
+    Ok(ModelStatus {
         model_exists: s.model_exists(),
         model_loaded: s.is_loaded(),
         model_path: s.model_path().to_string_lossy().to_string(),
-    }
+    })
 }
 
 const MODEL_URLS: &[(&str, &str)] = &[
@@ -54,8 +54,11 @@ pub async fn download_whisper_model(
 
     let filename = format!("ggml-{name}.bin");
     let model_dir = {
-        let s = state.lock().unwrap();
-        s.model_path().parent().unwrap().to_path_buf()
+        let s = state.lock().map_err(|_| "Whisper state lock poisoned".to_string())?;
+        s.model_path()
+            .parent()
+            .ok_or_else(|| "Model path has no parent directory".to_string())?
+            .to_path_buf()
     };
 
     tokio::fs::create_dir_all(&model_dir)
@@ -117,7 +120,7 @@ pub async fn download_whisper_model(
 
     // Update state model path if a different model was chosen
     {
-        let mut s = state.lock().unwrap();
+        let mut s = state.lock().map_err(|_| "Whisper state lock poisoned".to_string())?;
         s.set_model_path(dest.clone());
     }
 
@@ -126,7 +129,7 @@ pub async fn download_whisper_model(
 
 #[tauri::command]
 pub fn load_whisper_model(state: State<'_, ManagedWhisperState>) -> Result<(), String> {
-    let mut s = state.lock().unwrap();
+    let mut s = state.lock().map_err(|_| "Whisper state lock poisoned".to_string())?;
     s.load_model()
 }
 
@@ -155,6 +158,6 @@ pub fn transcribe_audio(
         Vec::new()
     };
 
-    let s = state.lock().unwrap();
+    let s = state.lock().map_err(|_| "Whisper state lock poisoned".to_string())?;
     s.transcribe(&resampled, &vocab_terms)
 }

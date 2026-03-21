@@ -10,7 +10,6 @@ import httpx
 
 from clarity_backend.voice.intent import Intent
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3.2:3b"
 
 SYSTEM_PROMPT = """You are a voice command classifier for a task management app. Given a transcript, output JSON:
@@ -46,9 +45,12 @@ async def classify_with_ai(text: str, project_names: list[str]) -> Intent | None
     """Attempt classification via local Ollama. Returns None if unavailable."""
     project_list = ", ".join(project_names) if project_names else "none configured"
     try:
+        from clarity_backend.config import settings as _settings
+
+        ollama_url = f"{_settings.OLLAMA_URL}/api/generate"
         async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.post(
-                OLLAMA_URL,
+                ollama_url,
                 json={
                     "model": OLLAMA_MODEL,
                     "prompt": f'Classify this voice command: "{text}"',

@@ -11,7 +11,6 @@ from difflib import SequenceMatcher
 
 import httpx
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3.2:3b"
 FUZZY_THRESHOLD = 0.6
 
@@ -132,9 +131,12 @@ class ProjectResolver:
             prompt += f"\nFull transcript: '{transcript_context}'"
 
         try:
+            from clarity_backend.config import settings as _settings
+
+            ollama_url = f"{_settings.OLLAMA_URL}/api/generate"
             async with httpx.AsyncClient(timeout=3.0) as client:
                 resp = await client.post(
-                    OLLAMA_URL,
+                    ollama_url,
                     json={
                         "model": OLLAMA_MODEL,
                         "prompt": prompt,

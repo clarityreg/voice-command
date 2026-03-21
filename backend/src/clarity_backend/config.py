@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     # OAuth redirect base — Tauri frontend intercepts this origin
     OAUTH_REDIRECT_BASE: str = "http://localhost:3080"
 
+    # Local Ollama instance used by the AI classifier and project resolver
+    OLLAMA_URL: str = "http://localhost:11434"
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS_ORIGINS from JSON string or comma-separated values."""

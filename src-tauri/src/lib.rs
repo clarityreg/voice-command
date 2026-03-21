@@ -24,12 +24,16 @@ pub fn run() {
 
             // Attempt eager model load if file exists (best-effort)
             let state = app.handle().state::<whisper::ManagedWhisperState>();
-            let mut s = state.lock().unwrap();
-            if s.model_exists() {
-                match s.load_model() {
-                    Ok(()) => log::info!("Whisper model loaded on startup"),
-                    Err(e) => log::warn!("Failed to load whisper model on startup: {e}"),
+            match state.lock() {
+                Ok(mut s) => {
+                    if s.model_exists() {
+                        match s.load_model() {
+                            Ok(()) => log::info!("Whisper model loaded on startup"),
+                            Err(e) => log::warn!("Failed to load whisper model on startup: {e}"),
+                        }
+                    }
                 }
+                Err(e) => log::error!("Whisper state lock poisoned on startup: {e}"),
             }
 
             Ok(())
