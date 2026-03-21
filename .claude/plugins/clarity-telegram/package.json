@@ -1,0 +1,7 @@
+{
+  "name": "clarity-telegram",
+  "version": "1.0.0",
+  "description": "Telegram channel plugin for Clarity Command Centre — forwards messages as voice commands",
+  "main": "index.ts",
+  "type": "module"
+}

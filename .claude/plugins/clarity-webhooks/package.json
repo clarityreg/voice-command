@@ -1,0 +1,7 @@
+{
+  "name": "clarity-webhooks",
+  "version": "1.0.0",
+  "description": "Webhook receiver channel for Clarity Command Centre — receives PostHog error alerts",
+  "main": "index.ts",
+  "type": "module"
+}
