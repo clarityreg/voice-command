@@ -11,6 +11,7 @@ pub fn run() {
     let whisper_state = Mutex::new(whisper::WhisperState::new());
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .manage(whisper_state)
         .setup(|app| {
             if cfg!(debug_assertions) {

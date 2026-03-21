@@ -12,6 +12,7 @@ from typing import Any
 from clarity_backend.models import utcnow
 
 _CLAUDE_PATH: str | None = shutil.which("claude")
+CLAUDE_CLI_AVAILABLE: bool = _CLAUDE_PATH is not None
 
 
 async def _broadcast(event: str, data: dict) -> None:

@@ -4,6 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import { getAuthStatus, getServiceStatuses, removeGmailAccount, removeOutlookAccount } from "@/lib/notificationApi";
 import type { ServiceStatus } from "@/lib/notificationTypes";
 import { API_BASE } from "@/lib/api";
+import { isTauri } from "@/lib/whisper";
+
+async function openOAuthUrl(url: string): Promise<void> {
+  if (isTauri()) {
+    const { open } = await import("@tauri-apps/plugin-shell");
+    await open(url);
+  } else {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
 
 export default function AccountManager() {
   const [gmailAccounts, setGmailAccounts] = useState<{ email: string; connected: boolean }[]>([]);
@@ -61,9 +71,9 @@ export default function AccountManager() {
             ))}
           </ul>
         )}
-        <a href={`${API_BASE}/auth/google/start`} target="_blank" rel="noopener noreferrer" className="inline-block rounded-pill bg-nav-bg px-4 py-2 text-sm font-medium text-cream hover:opacity-90">
+        <button onClick={() => openOAuthUrl(`${API_BASE}/auth/google/start`)} className="inline-block rounded-pill bg-nav-bg px-4 py-2 text-sm font-medium text-cream hover:opacity-90">
           Add Gmail Account
-        </a>
+        </button>
       </section>
 
       {/* Outlook */}
@@ -88,9 +98,9 @@ export default function AccountManager() {
             ))}
           </ul>
         )}
-        <a href={`${API_BASE}/auth/microsoft/start`} target="_blank" rel="noopener noreferrer" className="inline-block rounded-pill bg-nav-bg px-4 py-2 text-sm font-medium text-cream hover:opacity-90">
+        <button onClick={() => openOAuthUrl(`${API_BASE}/auth/microsoft/start`)} className="inline-block rounded-pill bg-nav-bg px-4 py-2 text-sm font-medium text-cream hover:opacity-90">
           Add Outlook Account
-        </a>
+        </button>
       </section>
 
       {/* Service statuses */}

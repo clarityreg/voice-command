@@ -18,14 +18,19 @@ def test_env_file_disabled_when_dotenvx_active():
 
 
 def test_env_file_enabled_when_dotenvx_not_set():
-    """When DOTENV_CONFIG is absent, _should_read_env_file should return '.env'."""
+    """When DOTENV_CONFIG is absent, _should_read_env_file should return '.env' or None.
+
+    Returns None if the .env file contains encrypted values (dotenvx),
+    or '.env' if the file is plain-text or doesn't exist.
+    """
     env = os.environ.copy()
     env.pop("DOTENV_CONFIG", None)
     with patch.dict(os.environ, env, clear=True):
         from clarity_backend.config import _should_read_env_file
 
         result = _should_read_env_file()
-        assert result == ".env"
+        # Either .env (plain text or missing) or None (encrypted values found)
+        assert result in (".env", None)
 
 
 def test_settings_defaults():

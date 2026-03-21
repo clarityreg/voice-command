@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AccountManager from "@/components/AccountManager";
 import NotificationSettings from "@/components/NotificationSettings";
 import TtsSettings from "@/components/TtsSettings";
@@ -15,6 +15,7 @@ type FormData = {
   plane_project_id: string;
   openai_api_key: string;
   stt_backend: string;
+  voice_shortcut: string;
   aikido_webhook_secret: string;
   posthog_api_key: string;
   posthog_project_id: string;
@@ -33,6 +34,7 @@ function toForm(s: AppSettings): FormData {
     plane_project_id: s.plane_project_id,
     openai_api_key: s.openai_api_key ?? "",
     stt_backend: s.stt_backend ?? "web-speech",
+    voice_shortcut: s.voice_shortcut ?? "Cmd+Shift+Space",
     aikido_webhook_secret: s.aikido_webhook_secret,
     posthog_api_key: s.posthog_api_key ?? "",
     posthog_project_id: s.posthog_project_id ?? "",
@@ -73,6 +75,7 @@ export default function SettingsPage() {
         plane_project_id: form.plane_project_id,
         openai_api_key: form.openai_api_key,
         stt_backend: form.stt_backend,
+        voice_shortcut: form.voice_shortcut,
         aikido_webhook_secret: form.aikido_webhook_secret,
         posthog_api_key: form.posthog_api_key,
         posthog_project_id: form.posthog_project_id,
@@ -190,6 +193,10 @@ export default function SettingsPage() {
               <span className="text-lg">{"\uD83C\uDFA4"}</span> Voice Recognition
             </h3>
             <div className="flex flex-col gap-3">
+              <ShortcutRecorder
+                value={form.voice_shortcut}
+                onChange={(v) => handleChange("voice_shortcut", v)}
+              />
               <label className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-bark-muted">Speech-to-Text Backend</span>
                 <select
@@ -272,5 +279,186 @@ function Field({
         className="rounded-lg border border-cream-dark bg-cream-light px-3 py-2 text-sm text-bark outline-none focus:border-accent"
       />
     </label>
+  );
+}
+
+const MODIFIER_DISPLAY: Record<string, string> = {
+  Meta: "\u2318",
+  Shift: "\u21E7",
+  Alt: "\u2325",
+  Control: "\u2303",
+};
+
+const KEY_TO_SHORTCUT_TOKEN: Record<string, string> = {
+  Meta: "Cmd",
+  Control: "Ctrl",
+  Alt: "Alt",
+  Shift: "Shift",
+};
+
+function buildShortcutString(e: KeyboardEvent): string {
+  const parts: string[] = [];
+  if (e.metaKey) parts.push("Cmd");
+  if (e.ctrlKey) parts.push("Ctrl");
+  if (e.altKey) parts.push("Alt");
+  if (e.shiftKey) parts.push("Shift");
+
+  // The non-modifier key
+  if (!["Meta", "Control", "Alt", "Shift"].includes(e.key)) {
+    if (e.code === "Space") {
+      parts.push("Space");
+    } else if (e.code.startsWith("Key") && e.code.length === 4) {
+      // e.g. KeyV → V
+      parts.push(e.code.slice(3));
+    } else {
+      parts.push(e.code);
+    }
+  }
+
+  return parts.join("+");
+}
+
+function formatShortcutDisplay(shortcut: string): string {
+  return shortcut
+    .split("+")
+    .map((part) => {
+      switch (part.trim().toLowerCase()) {
+        case "cmd":
+        case "meta":
+          return "\u2318";
+        case "shift":
+          return "\u21E7";
+        case "alt":
+        case "option":
+          return "\u2325";
+        case "ctrl":
+        case "control":
+          return "\u2303";
+        default:
+          return part.trim();
+      }
+    })
+    .join("");
+}
+
+function ShortcutRecorder({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [recording, setRecording] = useState(false);
+  const [preview, setPreview] = useState<string>("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const startRecording = useCallback(() => {
+    setRecording(true);
+    setPreview("");
+    // Focus the hidden input so keydown events fire reliably
+    containerRef.current?.focus();
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    setRecording(false);
+    setPreview("");
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!recording) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const isModifierOnly = ["Meta", "Control", "Alt", "Shift"].includes(e.key);
+
+      if (isModifierOnly) {
+        // Show a live preview of modifiers held so far
+        const modParts: string[] = [];
+        if (e.metaKey) modParts.push(MODIFIER_DISPLAY["Meta"]);
+        if (e.ctrlKey) modParts.push(MODIFIER_DISPLAY["Control"]);
+        if (e.altKey) modParts.push(MODIFIER_DISPLAY["Alt"]);
+        if (e.shiftKey) modParts.push(MODIFIER_DISPLAY["Shift"]);
+        // Mark the key being held right now too
+        if (!modParts.includes(MODIFIER_DISPLAY[e.key])) {
+          modParts.push(MODIFIER_DISPLAY[e.key]);
+        }
+        setPreview(modParts.join("") + "...");
+        return;
+      }
+
+      // Escape cancels recording without saving
+      if (e.key === "Escape") {
+        stopRecording();
+        return;
+      }
+
+      const shortcut = buildShortcutString(e.nativeEvent);
+      if (shortcut) {
+        onChange(shortcut);
+      }
+      setRecording(false);
+      setPreview("");
+    },
+    [recording, onChange, stopRecording],
+  );
+
+  // Clicking outside cancels recording
+  useEffect(() => {
+    if (!recording) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        stopRecording();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [recording, stopRecording]);
+
+  // Suppress unused import warnings for helper maps
+  void KEY_TO_SHORTCUT_TOKEN;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-bark-muted">Voice Shortcut</span>
+      <div
+        ref={containerRef}
+        tabIndex={-1}
+        onKeyDown={handleKeyDown}
+        className="outline-none"
+        aria-label="Voice shortcut recorder"
+      >
+        {recording ? (
+          <div className="flex items-center gap-2 rounded-lg border border-accent bg-cream-light px-3 py-2">
+            <span className="animate-pulse text-sm text-bark-muted">
+              {preview || "Press your shortcut..."}
+            </span>
+            <button
+              type="button"
+              onClick={stopRecording}
+              className="ml-auto text-xs text-bark-light hover:text-bark"
+              aria-label="Cancel shortcut recording"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={startRecording}
+            className="flex items-center gap-2 rounded-lg border border-cream-dark bg-cream-light px-3 py-2 text-sm text-bark transition hover:border-accent"
+            aria-label={`Current shortcut: ${value}. Click to change.`}
+          >
+            <kbd className="rounded bg-cream-dark px-1.5 py-0.5 font-mono text-xs">
+              {formatShortcutDisplay(value)}
+            </kbd>
+            <span className="text-bark-muted">Click to change</span>
+          </button>
+        )}
+      </div>
+      <span className="text-[10px] text-bark-light">
+        Click then press a key combo. Use Escape to cancel.
+      </span>
+    </div>
   );
 }

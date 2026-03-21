@@ -25,6 +25,12 @@ from clarity_backend.webhooks.posthog import router as posthog_router
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_db()
+    from clarity_backend.agent.runner import CLAUDE_CLI_AVAILABLE, _CLAUDE_PATH
+
+    if CLAUDE_CLI_AVAILABLE:
+        print(f"[Startup] Claude CLI: {_CLAUDE_PATH}")
+    else:
+        print("[Startup] Claude CLI: not found — agent fix features will be unavailable")
     try:
         from clarity_backend.services.registry import registry
 

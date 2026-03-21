@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings
 def _should_read_env_file() -> str | None:
     if os.getenv("DOTENV_CONFIG"):
         return None
-    env_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env")
+    env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
     try:
         with open(env_path) as f:
             for line in f:
@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     CLARITY_API_URL: str = "http://localhost:8000"
     CLARITY_API_KEY: str = ""
     CLARITY_WEBHOOK_SECRET: str = ""
+
+    # OAuth redirect base — Tauri frontend intercepts this origin
+    OAUTH_REDIRECT_BASE: str = "http://localhost:3080"
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -82,7 +85,7 @@ class Settings(BaseSettings):
     ASANA_DEFAULT_WORKSPACE_GID: str = ""
     ASANA_DEFAULT_PROJECT_GID: str = ""
 
-    model_config = {"env_file": _env_file}
+    model_config = {"env_file": _env_file, "extra": "ignore"}
 
     @property
     def slack_workspaces(self) -> list[dict]:

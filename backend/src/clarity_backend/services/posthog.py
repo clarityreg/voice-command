@@ -1,6 +1,7 @@
 """PostHog polling service — fetches error events and feeds them into the triage queue."""
 
 import asyncio
+import json
 from datetime import UTC, datetime
 
 import httpx
@@ -95,7 +96,7 @@ class PostHogPollerService(BaseService):
                 name = resp.json().get("name", self._project_id)
                 print(f"[PostHog] Connected to project: {name}")
                 return True
-        except Exception as e:
+        except (httpx.ConnectError, httpx.TimeoutException) as e:
             print(f"[PostHog] Connection error: {e}")
             return False
 
@@ -120,8 +121,15 @@ class PostHogPollerService(BaseService):
                     for event in events:
                         await self.emit_notification(self._event_to_notification(event))
                 self._last_check = datetime.now(UTC)
-            except Exception as e:
-                print(f"[PostHog] Polling error: {e}")
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code in (401, 403):
+                    print("[PostHog] API key invalid or expired — stopping poller")
+                    break
+                print(f"[PostHog] Polling error (HTTP {e.response.status_code}): {e}")
+            except (httpx.ConnectError, httpx.TimeoutException) as e:
+                print(f"[PostHog] Unreachable during poll: {e}")
+            except json.JSONDecodeError as e:
+                print(f"[PostHog] Invalid JSON in poll response: {e}")
             await asyncio.sleep(self._poll_interval)
 
     async def _fetch_events(self, limit: int = 50, after: str | None = None) -> list[dict]:
@@ -142,8 +150,10 @@ class PostHogPollerService(BaseService):
                 resp.raise_for_status()
                 data = resp.json()
                 return [_normalize_event(e) for e in data.get("results", [])]
-        except Exception as e:
-            print(f"[PostHog] Error fetching events: {e}")
+        except httpx.HTTPStatusError:
+            raise
+        except json.JSONDecodeError as e:
+            print(f"[PostHog] Invalid JSON in fetch response: {e}")
             return []
 
     async def _upsert_triage_items(self, events: list[dict]) -> None:

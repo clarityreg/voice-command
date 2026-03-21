@@ -38,19 +38,61 @@ DEFAULT_SETTINGS: dict = {
     "clarity_api_url": "http://localhost:8000",
     "clarity_api_key": "",
     "clarity_webhook_secret": "",
+    "oauth_redirect_base": "http://localhost:3080",
+    "voice_shortcut": "Cmd+Shift+Space",
 }
+
+# Mapping from settings.json keys to config.py Settings attribute names.
+# Only string fields that can be seeded from the environment are listed here.
+_ENV_TO_SETTINGS_KEY: dict[str, str] = {
+    "plane_api_key": "PLANE_API_KEY",
+    "plane_workspace_slug": "PLANE_WORKSPACE_SLUG",
+    "plane_project_id": "PLANE_PROJECT_ID",
+    "openai_api_key": "OPENAI_API_KEY",
+    "aikido_webhook_secret": "AIKIDO_WEBHOOK_SECRET",
+    "posthog_api_key": "POSTHOG_API_KEY",
+    "posthog_project_id": "POSTHOG_PROJECT_ID",
+    "posthog_host": "POSTHOG_HOST",
+    "clarity_api_url": "CLARITY_API_URL",
+    "clarity_api_key": "CLARITY_API_KEY",
+    "clarity_webhook_secret": "CLARITY_WEBHOOK_SECRET",
+    "oauth_redirect_base": "OAUTH_REDIRECT_BASE",
+}
+
+
+def _seed_from_env(merged: dict) -> dict:
+    """Fill empty string values in *merged* from config.py environment settings.
+
+    The import is deferred to avoid circular imports at module load time.
+    Only keys listed in ``_ENV_TO_SETTINGS_KEY`` are seeded, and only when
+    the current value is an empty string (i.e. not explicitly set by the user).
+    """
+    try:
+        from clarity_backend.config import settings as env_settings  # noqa: PLC0415
+    except Exception:
+        # If config cannot be imported (e.g. during isolated unit tests), skip
+        # seeding silently so the rest of the settings system still works.
+        return merged
+
+    for settings_key, config_attr in _ENV_TO_SETTINGS_KEY.items():
+        if merged.get(settings_key, "") == "":
+            env_value = getattr(env_settings, config_attr, "")
+            if env_value:
+                merged[settings_key] = env_value
+
+    return merged
 
 
 def _read_settings() -> dict:
     if not SETTINGS_FILE.exists():
-        return dict(DEFAULT_SETTINGS)
+        return _seed_from_env(dict(DEFAULT_SETTINGS))
     try:
         data = json.loads(SETTINGS_FILE.read_text())
         merged = dict(DEFAULT_SETTINGS)
         merged.update(data)
-        return merged
+        return _seed_from_env(merged)
     except (json.JSONDecodeError, OSError):
-        return dict(DEFAULT_SETTINGS)
+        return _seed_from_env(dict(DEFAULT_SETTINGS))
 
 
 def _write_settings(data: dict) -> None:
@@ -82,6 +124,7 @@ class SettingsUpdate(BaseModel):
     clarity_api_url: str | None = None
     clarity_api_key: str | None = None
     clarity_webhook_secret: str | None = None
+    voice_shortcut: str | None = None
 
 
 @router.get("")

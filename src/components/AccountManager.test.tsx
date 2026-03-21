@@ -181,7 +181,7 @@ describe("AccountManager", () => {
     });
   });
 
-  it("renders Add Gmail Account link with correct href", async () => {
+  it("renders Add Gmail Account button", async () => {
     mockGetAuthStatus.mockResolvedValue({
       gmail_accounts: [],
       outlook_accounts: [],
@@ -191,12 +191,12 @@ describe("AccountManager", () => {
     render(<AccountManager />);
 
     await waitFor(() => {
-      const link = screen.getByText("Add Gmail Account");
-      expect(link.getAttribute("href")).toBe("http://localhost:8070/auth/google/start");
+      const btn = screen.getByText("Add Gmail Account");
+      expect(btn.tagName).toBe("BUTTON");
     });
   });
 
-  it("renders Add Outlook Account link with correct href", async () => {
+  it("renders Add Outlook Account button", async () => {
     mockGetAuthStatus.mockResolvedValue({
       gmail_accounts: [],
       outlook_accounts: [],
@@ -206,8 +206,8 @@ describe("AccountManager", () => {
     render(<AccountManager />);
 
     await waitFor(() => {
-      const link = screen.getByText("Add Outlook Account");
-      expect(link.getAttribute("href")).toBe("http://localhost:8070/auth/microsoft/start");
+      const btn = screen.getByText("Add Outlook Account");
+      expect(btn.tagName).toBe("BUTTON");
     });
   });
 });

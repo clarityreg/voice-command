@@ -53,26 +53,27 @@ async def test_google_start_500_when_not_configured(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_google_callback_invalid_state(client: AsyncClient):
-    """Should return 400 for empty state token."""
-    resp = await client.get("/auth/google/callback?code=testcode&state=")
-    assert resp.status_code == 400
-    assert "Invalid or expired state" in resp.json()["detail"]
+    """Should redirect with error for empty state token."""
+    resp = await client.get("/auth/google/callback?code=testcode&state=", follow_redirects=False)
+    assert resp.status_code == 302
+    assert "status=error" in resp.headers["location"]
 
 
 @pytest.mark.asyncio
 async def test_google_callback_expired_state(client: AsyncClient):
-    """Should return 400 for a state token that was never issued (returns None)."""
+    """Should redirect with error for a state token that was never issued."""
     with patch(
         "clarity_backend.auth.google.validate_and_consume_state",
         return_value=None,
     ):
-        resp = await client.get("/auth/google/callback?code=testcode&state=bogus-state")
-    assert resp.status_code == 400
+        resp = await client.get("/auth/google/callback?code=testcode&state=bogus-state", follow_redirects=False)
+    assert resp.status_code == 302
+    assert "status=error" in resp.headers["location"]
 
 
 @pytest.mark.asyncio
 async def test_google_callback_success(client: AsyncClient):
-    """Should exchange code, save tokens, and return success HTML."""
+    """Should exchange code, save tokens, and redirect with success."""
     mock_tokens = {
         "access_token": "ya29.test",
         "refresh_token": "1//test-refresh",
@@ -102,12 +103,15 @@ async def test_google_callback_success(client: AsyncClient):
     ):
         mock_registry.add_gmail_service = AsyncMock()
         resp = await client.get(
-            "/auth/google/callback?code=4/test-code&state=valid-state"
+            "/auth/google/callback?code=4/test-code&state=valid-state",
+            follow_redirects=False,
         )
 
-    assert resp.status_code == 200
-    assert "Gmail Connected" in resp.text
-    assert "user@gmail.com" in resp.text
+    assert resp.status_code == 302
+    location = resp.headers["location"]
+    assert "status=success" in location
+    assert "provider=gmail" in location
+    assert "user%40gmail.com" in location
     # Verify code_verifier is passed through to exchange_code
     mock_exchange.assert_awaited_once_with("4/test-code", "test-code-verifier")
     mock_save.assert_awaited_once_with("user@gmail.com", mock_tokens)
@@ -116,7 +120,7 @@ async def test_google_callback_success(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_google_callback_exchange_failure(client: AsyncClient):
-    """Should return 500 when token exchange fails (the actual 500 bug)."""
+    """Should redirect with error when token exchange fails."""
     with (
         patch(
             "clarity_backend.auth.google.validate_and_consume_state",
@@ -129,11 +133,12 @@ async def test_google_callback_exchange_failure(client: AsyncClient):
         ),
     ):
         resp = await client.get(
-            "/auth/google/callback?code=expired-code&state=valid-state"
+            "/auth/google/callback?code=expired-code&state=valid-state",
+            follow_redirects=False,
         )
 
-    assert resp.status_code == 500
-    assert "OAuth token exchange failed" in resp.json()["detail"]
+    assert resp.status_code == 302
+    assert "status=error" in resp.headers["location"]
 
 
 @pytest.mark.asyncio
@@ -194,6 +199,7 @@ async def test_microsoft_start_500_when_not_configured(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_microsoft_callback_invalid_state(client: AsyncClient):
-    """Should return 400 for invalid state."""
-    resp = await client.get("/auth/microsoft/callback?code=testcode&state=")
-    assert resp.status_code == 400
+    """Should redirect with error for invalid state."""
+    resp = await client.get("/auth/microsoft/callback?code=testcode&state=", follow_redirects=False)
+    assert resp.status_code == 302
+    assert "status=error" in resp.headers["location"]

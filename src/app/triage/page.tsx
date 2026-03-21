@@ -35,7 +35,7 @@ export default function TriagePage() {
       setCurrentIndex(0);
       setError(null);
     } catch {
-      setError("Could not connect to backend. Is it running on :8001?");
+      setError("Could not connect to backend. Is it running on :8070?");
     } finally {
       setLoading(false);
     }

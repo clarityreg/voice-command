@@ -83,6 +83,7 @@ export interface AppSettings {
   posthog_host: string;
   openai_api_key?: string;
   stt_backend?: string;
+  voice_shortcut?: string;
   focus_minutes: number;
   break_minutes: number;
   clarity_api_url?: string;

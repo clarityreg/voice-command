@@ -56,7 +56,10 @@ export function useAudioCapture() {
     };
 
     source.connect(processor);
-    processor.connect(audioContext.destination);
+    const silentGain = audioContext.createGain();
+    silentGain.gain.value = 0;
+    processor.connect(silentGain);
+    silentGain.connect(audioContext.destination);
 
     streamRef.current = stream;
     contextRef.current = audioContext;

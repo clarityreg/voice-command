@@ -25,10 +25,63 @@ export interface UseVoiceReturn {
   lastResponse: string | null;
   audioLevel: number;
   pendingAction: PendingAction | null;
+  /** The active shortcut string, e.g. "Cmd+Shift+Space". Updates after settings load. */
+  shortcut: string;
   toggle: () => void;
   dismissResponse: () => void;
   confirmAction: () => void;
   rejectAction: () => void;
+}
+
+const DEFAULT_SHORTCUT = "Cmd+Shift+Space";
+
+/**
+ * Maps a human-readable shortcut string like "Cmd+Shift+Space" or "Ctrl+Alt+V"
+ * to a KeyboardEvent and returns true when the event matches.
+ *
+ * Modifier tokens (order-insensitive): Cmd, Ctrl, Alt, Shift
+ * Key token (last non-modifier part):
+ *   - "Space" → e.code === "Space"
+ *   - single letter "V" → e.code === "KeyV"
+ *   - anything else is compared directly against e.code
+ */
+export function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
+  const parts = shortcut.split("+").map((p) => p.trim());
+  const modifierTokens = new Set<string>();
+  let keyToken = "";
+
+  for (const part of parts) {
+    const lower = part.toLowerCase();
+    if (lower === "cmd" || lower === "meta") {
+      modifierTokens.add("meta");
+    } else if (lower === "ctrl" || lower === "control") {
+      modifierTokens.add("ctrl");
+    } else if (lower === "alt" || lower === "option") {
+      modifierTokens.add("alt");
+    } else if (lower === "shift") {
+      modifierTokens.add("shift");
+    } else {
+      keyToken = part;
+    }
+  }
+
+  // Modifier checks
+  if (modifierTokens.has("meta") !== e.metaKey) return false;
+  if (modifierTokens.has("ctrl") !== e.ctrlKey) return false;
+  if (modifierTokens.has("alt") !== e.altKey) return false;
+  if (modifierTokens.has("shift") !== e.shiftKey) return false;
+
+  // Key check — normalise single letters to "Key<X>" codes
+  if (!keyToken) return false;
+  let expectedCode: string;
+  if (keyToken === "Space") {
+    expectedCode = "Space";
+  } else if (keyToken.length === 1) {
+    expectedCode = `Key${keyToken.toUpperCase()}`;
+  } else {
+    expectedCode = keyToken;
+  }
+  return e.code === expectedCode;
 }
 
 export function useVoice(): UseVoiceReturn {
@@ -37,10 +90,12 @@ export function useVoice(): UseVoiceReturn {
   const [sttBackend, setSttBackend] = useState<SttBackend>("none");
   const [audioLevel, setAudioLevel] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [shortcut, setShortcut] = useState<string>(DEFAULT_SHORTCUT);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaChunksRef = useRef<Blob[]>([]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const shortcutRef = useRef<string>(DEFAULT_SHORTCUT);
   const { startCapture, stopCapture } = useAudioCapture();
 
   // Detect STT backend on mount — respect user preference from settings
@@ -49,9 +104,25 @@ export function useVoice(): UseVoiceReturn {
       // Check if user has configured a preferred STT backend
       try {
         const settings = await getSettings();
+        if (settings.voice_shortcut) {
+          shortcutRef.current = settings.voice_shortcut;
+          setShortcut(settings.voice_shortcut);
+        }
         const preferred = settings.stt_backend;
         if (preferred === "openai-whisper") {
           setSttBackend("openai-whisper");
+          console.info("[Voice] STT backend:", "openai-whisper");
+          return;
+        }
+
+        // Auto-upgrade: if the user has an OpenAI key but hasn't explicitly
+        // changed the STT backend away from web-speech, prefer cloud Whisper.
+        const hasOpenAIKey =
+          !!settings.openai_api_key &&
+          !settings.openai_api_key.includes("****");
+        if (hasOpenAIKey && (!preferred || preferred === "web-speech")) {
+          setSttBackend("openai-whisper");
+          console.info("[Voice] STT backend:", "openai-whisper");
           return;
         }
       } catch {
@@ -63,6 +134,7 @@ export function useVoice(): UseVoiceReturn {
           const status = await getModelStatus();
           if (status.model_loaded || status.model_exists) {
             setSttBackend("whisper");
+            console.info("[Voice] STT backend:", "whisper");
             return;
           }
         } catch {
@@ -74,7 +146,9 @@ export function useVoice(): UseVoiceReturn {
         typeof window !== "undefined"
           ? window.SpeechRecognition || window.webkitSpeechRecognition
           : null;
-      setSttBackend(SpeechRecognitionAPI ? "web-speech" : "none");
+      const backend = SpeechRecognitionAPI ? "web-speech" : "none";
+      setSttBackend(backend);
+      console.info("[Voice] STT backend:", backend);
     }
     detectBackend();
   }, []);
@@ -107,6 +181,7 @@ export function useVoice(): UseVoiceReturn {
 
   const handleResult = useCallback(
     async (transcript: string) => {
+      console.info("[Voice]", "processing");
       setState("processing");
       try {
         const result: VoiceResponse = await processVoice(transcript);
@@ -133,6 +208,7 @@ export function useVoice(): UseVoiceReturn {
   const startWhisper = useCallback(async () => {
     try {
       await startCapture({ onLevel: setAudioLevel });
+      console.info("[Voice]", "listening");
       setState("listening");
     } catch {
       setLastResponse("Microphone access denied.");
@@ -141,6 +217,7 @@ export function useVoice(): UseVoiceReturn {
   }, [startCapture]);
 
   const stopWhisper = useCallback(async () => {
+    console.info("[Voice]", "processing");
     setState("processing");
     setAudioLevel(0);
     try {
@@ -189,6 +266,7 @@ export function useVoice(): UseVoiceReturn {
       };
       mediaRecorderRef.current = recorder;
       recorder.start();
+      console.info("[Voice]", "listening");
       setState("listening");
     } catch {
       setLastResponse("Microphone access denied.");
@@ -263,6 +341,7 @@ export function useVoice(): UseVoiceReturn {
 
     recognitionRef.current = recognition;
     recognition.start();
+    console.info("[Voice]", "listening");
     setState("listening");
   }, [handleResult, state]);
 
@@ -333,10 +412,11 @@ export function useVoice(): UseVoiceReturn {
     setState("idle");
   }, []);
 
-  // Global keyboard shortcut: Cmd+Shift+Space
+  // Global keyboard shortcut — reads from shortcutRef so it stays current
+  // without needing to re-register the listener on every settings change.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.metaKey && e.shiftKey && e.code === "Space") {
+      if (matchesShortcut(e, shortcutRef.current)) {
         e.preventDefault();
         toggle();
       }
@@ -351,6 +431,7 @@ export function useVoice(): UseVoiceReturn {
     lastResponse,
     audioLevel,
     pendingAction,
+    shortcut,
     toggle,
     dismissResponse,
     confirmAction,

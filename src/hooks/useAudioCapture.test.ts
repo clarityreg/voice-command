@@ -22,11 +22,17 @@ const mockSource = {
   connect: vi.fn(),
 };
 
+const mockGainNode = {
+  gain: { value: 1 },
+  connect: vi.fn(),
+};
+
 const mockAudioContext = {
   sampleRate: 16000,
   state: "running",
   createMediaStreamSource: vi.fn(() => mockSource),
   createScriptProcessor: vi.fn(() => mockProcessor),
+  createGain: vi.fn(() => mockGainNode),
   close: vi.fn().mockResolvedValue(undefined),
   destination: {},
 };
