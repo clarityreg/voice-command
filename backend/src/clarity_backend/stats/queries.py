@@ -77,9 +77,11 @@ async def daily_actioned_trend(session: AsyncSession, days: int = 14) -> list[di
 async def get_severity_breakdown(session: AsyncSession) -> dict[str, int]:
     """Count pending items grouped by severity (single query)."""
     result = await session.exec(
-        select(TriageItem.severity, func.count()).where(  # type: ignore[call-overload]
+        select(TriageItem.severity, func.count())
+        .where(  # type: ignore[call-overload]
             TriageItem.status == "pending",
-        ).group_by(TriageItem.severity)
+        )
+        .group_by(TriageItem.severity)
     )
     counts = dict(result.all())
     # Ensure all four levels are present

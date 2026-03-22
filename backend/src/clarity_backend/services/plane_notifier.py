@@ -20,11 +20,18 @@ class PlaneNotifierService(BaseService):
         self._poll_interval = 30
         self._last_check: datetime | None = None
 
+    @property
+    def _configured(self) -> bool:
+        return bool(settings.PLANE_API_KEY and self._workspace and settings.PLANE_PROJECT_ID)
+
     async def connect(self) -> bool:
+        if not self._configured:
+            print("[Plane] Skipping — API key, workspace, or project ID not set")
+            return False
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.get(
-                    f"{self._base_url}/workspaces/{self._workspace}/",
+                    f"{self._base_url}/workspaces/{self._workspace}/projects/",
                     headers=self._headers,
                 )
                 resp.raise_for_status()
@@ -60,6 +67,8 @@ class PlaneNotifierService(BaseService):
         return notifications
 
     async def listen(self):
+        if not self._configured:
+            return
         while self._running:
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
@@ -131,15 +140,11 @@ class PlaneNotifierService(BaseService):
             project_name=issue.get("project_detail", {}).get("name", ""),
             priority=priority,
             timestamp=datetime.fromisoformat(
-                issue.get("updated_at", datetime.utcnow().isoformat()).replace(
-                    "Z", "+00:00"
-                )
+                issue.get("updated_at", datetime.utcnow().isoformat()).replace("Z", "+00:00")
             ),
             raw_payload={
                 "state": issue.get("state_detail", {}).get("name"),
                 "sequence_id": issue.get("sequence_id"),
-                "labels": [
-                    label.get("name") for label in issue.get("label_detail", [])
-                ],
+                "labels": [label.get("name") for label in issue.get("label_detail", [])],
             },
         )

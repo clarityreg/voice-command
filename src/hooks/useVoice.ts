@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { processVoice, type VoiceResponse } from "@/lib/api";
+import {
+  processVoice,
+  processAudio,
+  confirmPlaneAction,
+  getSettings,
+  type VoiceResponse,
+  type PendingAction,
+} from "@/lib/api";
 import {
   isTauri,
   getModelStatus,
@@ -10,15 +17,71 @@ import {
 import { useAudioCapture } from "@/hooks/useAudioCapture";
 
 export type VoiceState = "idle" | "listening" | "processing" | "speaking";
-export type SttBackend = "whisper" | "web-speech" | "none";
+export type SttBackend = "whisper" | "web-speech" | "openai-whisper" | "none";
 
 export interface UseVoiceReturn {
   state: VoiceState;
   sttBackend: SttBackend;
   lastResponse: string | null;
   audioLevel: number;
+  pendingAction: PendingAction | null;
+  /** The active shortcut string, e.g. "Cmd+Shift+Space". Updates after settings load. */
+  shortcut: string;
   toggle: () => void;
   dismissResponse: () => void;
+  confirmAction: () => void;
+  rejectAction: () => void;
+}
+
+const DEFAULT_SHORTCUT = "Cmd+Shift+Space";
+
+/**
+ * Maps a human-readable shortcut string like "Cmd+Shift+Space" or "Ctrl+Alt+V"
+ * to a KeyboardEvent and returns true when the event matches.
+ *
+ * Modifier tokens (order-insensitive): Cmd, Ctrl, Alt, Shift
+ * Key token (last non-modifier part):
+ *   - "Space" → e.code === "Space"
+ *   - single letter "V" → e.code === "KeyV"
+ *   - anything else is compared directly against e.code
+ */
+export function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
+  const parts = shortcut.split("+").map((p) => p.trim());
+  const modifierTokens = new Set<string>();
+  let keyToken = "";
+
+  for (const part of parts) {
+    const lower = part.toLowerCase();
+    if (lower === "cmd" || lower === "meta") {
+      modifierTokens.add("meta");
+    } else if (lower === "ctrl" || lower === "control") {
+      modifierTokens.add("ctrl");
+    } else if (lower === "alt" || lower === "option") {
+      modifierTokens.add("alt");
+    } else if (lower === "shift") {
+      modifierTokens.add("shift");
+    } else {
+      keyToken = part;
+    }
+  }
+
+  // Modifier checks
+  if (modifierTokens.has("meta") !== e.metaKey) return false;
+  if (modifierTokens.has("ctrl") !== e.ctrlKey) return false;
+  if (modifierTokens.has("alt") !== e.altKey) return false;
+  if (modifierTokens.has("shift") !== e.shiftKey) return false;
+
+  // Key check — normalise single letters to "Key<X>" codes
+  if (!keyToken) return false;
+  let expectedCode: string;
+  if (keyToken === "Space") {
+    expectedCode = "Space";
+  } else if (keyToken.length === 1) {
+    expectedCode = `Key${keyToken.toUpperCase()}`;
+  } else {
+    expectedCode = keyToken;
+  }
+  return e.code === expectedCode;
 }
 
 export function useVoice(): UseVoiceReturn {
@@ -26,17 +89,52 @@ export function useVoice(): UseVoiceReturn {
   const [lastResponse, setLastResponse] = useState<string | null>(null);
   const [sttBackend, setSttBackend] = useState<SttBackend>("none");
   const [audioLevel, setAudioLevel] = useState(0);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [shortcut, setShortcut] = useState<string>(DEFAULT_SHORTCUT);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaChunksRef = useRef<Blob[]>([]);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const shortcutRef = useRef<string>(DEFAULT_SHORTCUT);
   const { startCapture, stopCapture } = useAudioCapture();
 
-  // Detect STT backend on mount
+  // Detect STT backend on mount — respect user preference from settings
   useEffect(() => {
     async function detectBackend() {
+      // Check if user has configured a preferred STT backend
+      try {
+        const settings = await getSettings();
+        if (settings.voice_shortcut) {
+          shortcutRef.current = settings.voice_shortcut;
+          setShortcut(settings.voice_shortcut);
+        }
+        const preferred = settings.stt_backend;
+        if (preferred === "openai-whisper") {
+          setSttBackend("openai-whisper");
+          console.info("[Voice] STT backend:", "openai-whisper");
+          return;
+        }
+
+        // Auto-upgrade: if the user has an OpenAI key but hasn't explicitly
+        // changed the STT backend away from web-speech, prefer cloud Whisper.
+        const hasOpenAIKey =
+          !!settings.openai_api_key &&
+          !settings.openai_api_key.includes("****");
+        if (hasOpenAIKey && (!preferred || preferred === "web-speech")) {
+          setSttBackend("openai-whisper");
+          console.info("[Voice] STT backend:", "openai-whisper");
+          return;
+        }
+      } catch {
+        // Settings not available, fall through to auto-detect
+      }
+
       if (isTauri()) {
         try {
           const status = await getModelStatus();
           if (status.model_loaded || status.model_exists) {
             setSttBackend("whisper");
+            console.info("[Voice] STT backend:", "whisper");
             return;
           }
         } catch {
@@ -48,7 +146,9 @@ export function useVoice(): UseVoiceReturn {
         typeof window !== "undefined"
           ? window.SpeechRecognition || window.webkitSpeechRecognition
           : null;
-      setSttBackend(SpeechRecognitionAPI ? "web-speech" : "none");
+      const backend = SpeechRecognitionAPI ? "web-speech" : "none";
+      setSttBackend(backend);
+      console.info("[Voice] STT backend:", backend);
     }
     detectBackend();
   }, []);
@@ -81,11 +181,20 @@ export function useVoice(): UseVoiceReturn {
 
   const handleResult = useCallback(
     async (transcript: string) => {
+      console.info("[Voice]", "processing");
       setState("processing");
       try {
         const result: VoiceResponse = await processVoice(transcript);
         setLastResponse(result.response);
-        speak(result.response);
+
+        // Check if the response contains a pending action requiring confirmation
+        const pa = result.data?.pending_action as PendingAction | undefined;
+        if (pa) {
+          setPendingAction(pa);
+          speak(result.response);
+        } else {
+          speak(result.response);
+        }
       } catch {
         setLastResponse("Sorry, something went wrong.");
         setState("idle");
@@ -99,6 +208,7 @@ export function useVoice(): UseVoiceReturn {
   const startWhisper = useCallback(async () => {
     try {
       await startCapture({ onLevel: setAudioLevel });
+      console.info("[Voice]", "listening");
       setState("listening");
     } catch {
       setLastResponse("Microphone access denied.");
@@ -107,6 +217,7 @@ export function useVoice(): UseVoiceReturn {
   }, [startCapture]);
 
   const stopWhisper = useCallback(async () => {
+    console.info("[Voice]", "processing");
     setState("processing");
     setAudioLevel(0);
     try {
@@ -123,6 +234,76 @@ export function useVoice(): UseVoiceReturn {
       setState("idle");
     }
   }, [stopCapture, handleResult]);
+
+  // --- OpenAI Whisper path (push-to-talk, cloud transcription) ---
+
+  const handleAudioResult = useCallback(
+    async (result: VoiceResponse) => {
+      setLastResponse(result.response);
+      const pa = result.data?.pending_action as PendingAction | undefined;
+      if (pa) {
+        setPendingAction(pa);
+      }
+      speak(result.response);
+    },
+    [speak],
+  );
+
+  const startOpenAIWhisper = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      mediaChunksRef.current = [];
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : undefined;
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) mediaChunksRef.current.push(e.data);
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      console.info("[Voice]", "listening");
+      setState("listening");
+    } catch {
+      setLastResponse("Microphone access denied.");
+      setState("idle");
+    }
+  }, []);
+
+  const stopOpenAIWhisper = useCallback(async () => {
+    setState("processing");
+
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") {
+      setState("idle");
+      return;
+    }
+
+    // Wait for the recorder to finish
+    const blob = await new Promise<Blob>((resolve) => {
+      recorder.onstop = () => {
+        resolve(new Blob(mediaChunksRef.current, { type: recorder.mimeType || "audio/webm" }));
+      };
+      recorder.stop();
+    });
+
+    // Stop all tracks
+    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    mediaStreamRef.current = null;
+    mediaRecorderRef.current = null;
+
+    try {
+      const result = await processAudio(blob);
+      handleAudioResult(result);
+    } catch {
+      setLastResponse("Transcription failed.");
+      setState("idle");
+    }
+  }, [handleAudioResult]);
 
   // --- Web Speech API path ---
 
@@ -160,6 +341,7 @@ export function useVoice(): UseVoiceReturn {
 
     recognitionRef.current = recognition;
     recognition.start();
+    console.info("[Voice]", "listening");
     setState("listening");
   }, [handleResult, state]);
 
@@ -175,12 +357,16 @@ export function useVoice(): UseVoiceReturn {
     if (state === "listening") {
       if (sttBackend === "whisper") {
         stopWhisper();
+      } else if (sttBackend === "openai-whisper") {
+        stopOpenAIWhisper();
       } else {
         stopWebSpeech();
       }
     } else if (state === "idle") {
       if (sttBackend === "whisper") {
         startWhisper();
+      } else if (sttBackend === "openai-whisper") {
+        startOpenAIWhisper();
       } else if (sttBackend === "web-speech") {
         startWebSpeech();
       } else {
@@ -192,20 +378,45 @@ export function useVoice(): UseVoiceReturn {
     sttBackend,
     startWhisper,
     stopWhisper,
+    startOpenAIWhisper,
+    stopOpenAIWhisper,
     startWebSpeech,
     stopWebSpeech,
   ]);
 
   const dismissResponse = useCallback(() => {
     setLastResponse(null);
+    setPendingAction(null);
     speechSynthesis.cancel();
     setState("idle");
   }, []);
 
-  // Global keyboard shortcut: Cmd+Shift+Space
+  const confirmAction = useCallback(async () => {
+    if (!pendingAction) return;
+    const action = pendingAction;
+    setPendingAction(null);
+    setState("processing");
+    try {
+      const result = await confirmPlaneAction(action);
+      setLastResponse(result.response);
+      speak(result.response);
+    } catch {
+      setLastResponse("Failed to execute action.");
+      setState("idle");
+    }
+  }, [pendingAction, speak]);
+
+  const rejectAction = useCallback(() => {
+    setPendingAction(null);
+    setLastResponse("Action cancelled.");
+    setState("idle");
+  }, []);
+
+  // Global keyboard shortcut — reads from shortcutRef so it stays current
+  // without needing to re-register the listener on every settings change.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.metaKey && e.shiftKey && e.code === "Space") {
+      if (matchesShortcut(e, shortcutRef.current)) {
         e.preventDefault();
         toggle();
       }
@@ -219,7 +430,11 @@ export function useVoice(): UseVoiceReturn {
     sttBackend,
     lastResponse,
     audioLevel,
+    pendingAction,
+    shortcut,
     toggle,
     dismissResponse,
+    confirmAction,
+    rejectAction,
   };
 }

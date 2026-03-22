@@ -10,6 +10,8 @@ vi.mock("next/link", () => ({
 
 const mockToggle = vi.fn();
 const mockDismissResponse = vi.fn();
+const mockConfirmAction = vi.fn();
+const mockRejectAction = vi.fn();
 
 vi.mock("@/hooks/useVoice", () => ({
   useVoice: vi.fn(() => ({
@@ -17,8 +19,12 @@ vi.mock("@/hooks/useVoice", () => ({
     sttBackend: "web-speech" as const,
     lastResponse: null,
     audioLevel: 0,
+    pendingAction: null,
+    shortcut: "Cmd+Shift+Space",
     toggle: mockToggle,
     dismissResponse: mockDismissResponse,
+    confirmAction: mockConfirmAction,
+    rejectAction: mockRejectAction,
   })),
 }));
 
@@ -32,8 +38,12 @@ beforeEach(() => {
     sttBackend: "web-speech",
     lastResponse: null,
     audioLevel: 0,
+    pendingAction: null,
+    shortcut: "Cmd+Shift+Space",
     toggle: mockToggle,
     dismissResponse: mockDismissResponse,
+    confirmAction: mockConfirmAction,
+    rejectAction: mockRejectAction,
   });
 });
 
@@ -56,8 +66,12 @@ describe("VoiceCommandArea", () => {
       sttBackend: "web-speech",
       lastResponse: null,
       audioLevel: 0.5,
+      pendingAction: null,
+      shortcut: "Cmd+Shift+Space",
       toggle: mockToggle,
       dismissResponse: mockDismissResponse,
+      confirmAction: mockConfirmAction,
+      rejectAction: mockRejectAction,
     });
     render(<VoiceCommandArea pending={0} />);
     expect(screen.getByText("Listening...")).toBeInTheDocument();
@@ -70,8 +84,12 @@ describe("VoiceCommandArea", () => {
       sttBackend: "web-speech",
       lastResponse: "Test response",
       audioLevel: 0,
+      pendingAction: null,
+      shortcut: "Cmd+Shift+Space",
       toggle: mockToggle,
       dismissResponse: mockDismissResponse,
+      confirmAction: mockConfirmAction,
+      rejectAction: mockRejectAction,
     });
     render(<VoiceCommandArea pending={0} />);
     expect(screen.getByText("Speaking...")).toBeInTheDocument();
@@ -83,8 +101,12 @@ describe("VoiceCommandArea", () => {
       sttBackend: "web-speech",
       lastResponse: "You have 3 errors",
       audioLevel: 0,
+      pendingAction: null,
+      shortcut: "Cmd+Shift+Space",
       toggle: mockToggle,
       dismissResponse: mockDismissResponse,
+      confirmAction: mockConfirmAction,
+      rejectAction: mockRejectAction,
     });
     render(<VoiceCommandArea pending={5} />);
     fireEvent.click(screen.getByText("You have 3 errors"));

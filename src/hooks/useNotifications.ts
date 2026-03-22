@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { Notification, Source, ServiceStatus } from "@/lib/notificationTypes";
 import { createWsClient } from "@/lib/wsClient";
+import { getNotifications } from "@/lib/notificationApi";
 
 type State = {
   notifications: Notification[];
@@ -16,7 +17,8 @@ type Action =
   | { type: "UPDATE_ONE"; id: string; updates: Partial<Notification> }
   | { type: "REMOVE"; id: string }
   | { type: "SET_CONNECTED"; connected: boolean }
-  | { type: "SET_SERVICE_STATUS"; status: ServiceStatus };
+  | { type: "SET_SERVICE_STATUS"; status: ServiceStatus }
+  | { type: "APPEND_OLDER"; notifications: Notification[] };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -53,6 +55,11 @@ function reducer(state: State, action: Action): State {
       }
       return { ...state, serviceStatuses: statuses };
     }
+    case "APPEND_OLDER": {
+      const existingIds = new Set(state.notifications.map((n) => n.id));
+      const newOnes = action.notifications.filter((n) => !existingIds.has(n.id));
+      return { ...state, notifications: [...state.notifications, ...newOnes] };
+    }
     default:
       return state;
   }
@@ -85,15 +92,13 @@ export function useNotifications() {
   }, []);
 
   const filteredNotifications = useMemo(() => {
-    let result = state.notifications.filter((n) => n.triage_status !== "archived");
-    if (activeFilter !== "all") {
-      result = result.filter((n) => n.source === activeFilter);
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (n) => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q) || n.sender_name.toLowerCase().includes(q),
-      );
+    const q = searchQuery.trim().toLowerCase();
+    const result: Notification[] = [];
+    for (const n of state.notifications) {
+      if (n.triage_status === "archived") continue;
+      if (activeFilter !== "all" && n.source !== activeFilter) continue;
+      if (q && !n.title.toLowerCase().includes(q) && !n.body.toLowerCase().includes(q) && !n.sender_name.toLowerCase().includes(q)) continue;
+      result.push(n);
     }
     const priorityOrder: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
     result.sort((a, b) => {
@@ -105,7 +110,7 @@ export function useNotifications() {
   }, [state.notifications, activeFilter, searchQuery]);
 
   const unreadCounts = useMemo(() => {
-    const counts: Record<string, number> = { gmail: 0, outlook: 0, slack: 0, asana: 0, plane: 0, total: 0 };
+    const counts: Record<string, number> = { gmail: 0, outlook: 0, slack: 0, asana: 0, plane: 0, posthog: 0, total: 0 };
     for (const n of state.notifications) {
       if (n.triage_status === "unread") {
         counts[n.source] = (counts[n.source] || 0) + 1;
@@ -120,6 +125,11 @@ export function useNotifications() {
     [state.notifications, selectedId],
   );
 
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const notificationCountRef = useRef(0);
+  notificationCountRef.current = state.notifications.length;
+
   const markRead = useCallback((id: string) => {
     dispatch({ type: "UPDATE_ONE", id, updates: { triage_status: "read" } });
   }, []);
@@ -127,6 +137,24 @@ export function useNotifications() {
   const archive = useCallback((id: string) => {
     dispatch({ type: "UPDATE_ONE", id, updates: { triage_status: "archived" } });
   }, []);
+
+  const actioned = useCallback((id: string) => {
+    dispatch({ type: "UPDATE_ONE", id, updates: { triage_status: "actioned" } });
+  }, []);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const offset = notificationCountRef.current;
+      const { notifications: older, has_more } = await getNotifications(50, undefined, offset);
+      dispatch({ type: "APPEND_OLDER", notifications: older });
+      setHasMore(has_more);
+    } catch (e) {
+      console.error("Failed to load more:", e);
+    }
+    setLoadingMore(false);
+  }, [loadingMore, hasMore]);
 
   return {
     notifications: filteredNotifications,
@@ -142,5 +170,9 @@ export function useNotifications() {
     setSelectedId,
     markRead,
     archive,
+    actioned,
+    loadMore,
+    hasMore,
+    loadingMore,
   };
 }

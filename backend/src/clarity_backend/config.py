@@ -1,4 +1,27 @@
+import os
+
 from pydantic_settings import BaseSettings
+
+
+# Skip reading .env directly when dotenvx has already injected decrypted env vars,
+# or when the .env contains encrypted values pydantic can't parse.
+def _should_read_env_file() -> str | None:
+    if os.getenv("DOTENV_CONFIG"):
+        return None
+    env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+    try:
+        with open(env_path) as f:
+            for line in f:
+                if line.strip().startswith("#") or "=" not in line:
+                    continue
+                if "encrypted:" in line:
+                    return None
+    except OSError:
+        pass
+    return ".env"
+
+
+_env_file = _should_read_env_file()
 
 
 class Settings(BaseSettings):
@@ -7,8 +30,38 @@ class Settings(BaseSettings):
     PLANE_WORKSPACE_SLUG: str = ""
     PLANE_PROJECT_ID: str = ""
     PLANE_API_URL: str = "https://app.plane.so/api/v1"
+    OPENAI_API_KEY: str = ""
     AIKIDO_WEBHOOK_SECRET: str = ""
-    CORS_ORIGINS: list[str] = ["*"]
+    POSTHOG_API_KEY: str = ""
+    POSTHOG_PROJECT_ID: str = ""
+    POSTHOG_HOST: str = "https://eu.posthog.com"
+    POSTHOG_POLL_INTERVAL: int = 60
+    CORS_ORIGINS: str = '["*"]'
+
+    # Clarity App integration
+    CLARITY_API_URL: str = "http://localhost:8000"
+    CLARITY_API_KEY: str = ""
+    CLARITY_WEBHOOK_SECRET: str = ""
+
+    # OAuth redirect base — Tauri frontend intercepts this origin
+    OAUTH_REDIRECT_BASE: str = "http://localhost:3080"
+
+    # Local Ollama instance used by the AI classifier and project resolver
+    OLLAMA_URL: str = "http://localhost:11434"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Parse CORS_ORIGINS from JSON string or comma-separated values."""
+        import json
+
+        v = self.CORS_ORIGINS
+        try:
+            parsed = json.loads(v)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+        return [s.strip() for s in v.split(",") if s.strip()]
 
     # Google / Gmail OAuth
     GOOGLE_CLIENT_ID: str = ""
@@ -35,7 +88,7 @@ class Settings(BaseSettings):
     ASANA_DEFAULT_WORKSPACE_GID: str = ""
     ASANA_DEFAULT_PROJECT_GID: str = ""
 
-    model_config = {"env_file": ".env"}
+    model_config = {"env_file": _env_file, "extra": "ignore"}
 
     @property
     def slack_workspaces(self) -> list[dict]:

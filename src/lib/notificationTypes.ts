@@ -1,5 +1,7 @@
-export type Source = "gmail" | "outlook" | "slack" | "asana" | "plane";
-export type NotificationType = "email" | "message" | "task_update" | "task_assigned" | "mention" | "comment" | "reminder";
+export type Source = "gmail" | "outlook" | "slack" | "asana" | "plane" | "posthog" | "clarity";
+
+export const SOURCES: (Source | "all")[] = ["all", "gmail", "outlook", "slack", "asana", "plane", "posthog", "clarity"];
+export type NotificationType = "email" | "message" | "task_update" | "task_assigned" | "mention" | "comment" | "reminder" | "schedule_update" | "compliance_alert" | "action_point";
 export type Priority = "urgent" | "high" | "normal" | "low";
 export type NotificationTriageStatus = "unread" | "read" | "snoozed" | "archived" | "actioned";
 
@@ -51,6 +53,8 @@ export const SOURCE_CONFIG: Record<Source, { label: string; color: string; icon:
   slack: { label: "Slack", color: "#611F69", icon: "💬" },
   asana: { label: "Asana", color: "#E8573A", icon: "📋" },
   plane: { label: "Plane", color: "#2563EB", icon: "✈️" },
+  posthog: { label: "PostHog", color: "#F9A825", icon: "🦔" },
+  clarity: { label: "Clarity", color: "#7C3AED", icon: "🔬" },
 };
 
 export const PRIORITY_CONFIG: Record<Priority, { label: string; color: string }> = {

@@ -12,7 +12,7 @@ from clarity_backend.database import engine, get_session
 from clarity_backend.models import TriageItem, utcnow
 
 from .models import AgentJob
-from .runner import create_plan, execute_plan
+from .runner import CLAUDE_CLI_AVAILABLE, create_plan, execute_plan
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
@@ -48,6 +48,11 @@ async def start_fix(
     session: SessionDep,
 ) -> dict:
     """Create an AgentJob for the given triage item and start planning."""
+    if not CLAUDE_CLI_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Claude CLI not installed. Install from https://claude.ai/download",
+        )
     item = await session.get(TriageItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Triage item not found")
@@ -99,7 +104,9 @@ async def approve_job(
     if not job:
         raise HTTPException(status_code=404, detail="Agent job not found")
     if job.status != "plan_ready":
-        raise HTTPException(status_code=400, detail=f"Job is in '{job.status}' state, expected 'plan_ready'")
+        raise HTTPException(
+            status_code=400, detail=f"Job is in '{job.status}' state, expected 'plan_ready'"
+        )
 
     job.status = "approved"
     job.updated_at = utcnow()

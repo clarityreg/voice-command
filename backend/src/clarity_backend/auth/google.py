@@ -1,5 +1,8 @@
 import asyncio
 import secrets
+import threading
+import time
+from collections import OrderedDict
 
 import httpx
 from google_auth_oauthlib.flow import Flow
@@ -11,11 +14,26 @@ from clarity_backend.config import settings
 GMAIL_SCOPES = [
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
-    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/gmail.send",
 ]
 
-_pending_states: dict[str, bool] = {}
+# Maps state token → (code_verifier, timestamp). TTL = 10 minutes.
+# Protected by _states_lock for thread-safety in single-process deployments.
+# NOTE: Not shared across processes — use Redis/DB for multi-worker setups.
+_STATE_TTL = 600
+_states_lock = threading.Lock()
+_pending_states: OrderedDict[str, tuple[str, float]] = OrderedDict()
+
+
+def _cleanup_expired_states() -> None:
+    now = time.time()
+    while _pending_states:
+        _state, (_, ts) = next(iter(_pending_states.items()))
+        if now - ts > _STATE_TTL:
+            _pending_states.pop(_state)
+        else:
+            break
 
 
 def _make_client_config() -> dict:
@@ -31,30 +49,41 @@ def _make_client_config() -> dict:
 
 
 def build_auth_url() -> str:
+    with _states_lock:
+        _cleanup_expired_states()
     state = secrets.token_urlsafe(32)
-    _pending_states[state] = True
     flow = Flow.from_client_config(
         _make_client_config(),
         scopes=GMAIL_SCOPES,
         redirect_uri=settings.GOOGLE_REDIRECT_URI,
     )
-    auth_url, _ = flow.authorization_url(
-        access_type="offline", prompt="consent", state=state
-    )
+    auth_url, _ = flow.authorization_url(access_type="offline", prompt="consent", state=state)
+    # Store the PKCE code_verifier so exchange_code() can use it
+    with _states_lock:
+        _pending_states[state] = (flow.code_verifier, time.time())
     return auth_url
 
 
-def validate_and_consume_state(state: str) -> bool:
-    return _pending_states.pop(state, False)
+def validate_and_consume_state(state: str) -> str | None:
+    """Pop and return the code_verifier for this state, or None if invalid/expired."""
+    with _states_lock:
+        entry = _pending_states.pop(state, None)
+    if entry is None:
+        return None
+    verifier, ts = entry
+    if time.time() - ts > _STATE_TTL:
+        return None
+    return verifier
 
 
-async def exchange_code(code: str) -> dict:
+async def exchange_code(code: str, code_verifier: str) -> dict:
     def _exchange():
         flow = Flow.from_client_config(
             _make_client_config(),
             scopes=GMAIL_SCOPES,
             redirect_uri=settings.GOOGLE_REDIRECT_URI,
         )
+        flow.code_verifier = code_verifier
         flow.fetch_token(code=code)
         creds = flow.credentials
         return {

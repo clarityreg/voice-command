@@ -20,6 +20,11 @@ class MorningBriefResponse(BaseModel):
     actioned_yesterday: int
     pending_total: int
     top_severity: str | None
+    # Clarity App data (None if offline)
+    overdue_reviews: int | None = None
+    pending_email_actions: int | None = None
+    approaching_deadlines: list[str] | None = None
+    clarity_available: bool = False
 
 
 @router.get("/morning")
@@ -55,9 +60,7 @@ async def morning_brief(session: SessionDep) -> MorningBriefResponse:
     actioned_yesterday = actioned_result.one()
 
     # Total pending
-    pending_result = await session.exec(
-        select(func.count()).where(TriageItem.status == "pending")
-    )
+    pending_result = await session.exec(select(func.count()).where(TriageItem.status == "pending"))
     pending_total = pending_result.one()
 
     # Top severity among pending items
@@ -73,10 +76,39 @@ async def morning_brief(session: SessionDep) -> MorningBriefResponse:
             top_severity = sev
             break
 
+    # Enrich with Clarity App data (best-effort)
+    overdue_reviews = None
+    pending_email_actions = None
+    approaching_deadlines = None
+    clarity_available = False
+
+    try:
+        from clarity_backend.integrations.clarity import _get_clarity_client
+
+        client = _get_clarity_client()
+        if client.api_key:
+            analytics = await client.get_email_analytics()
+            pending_email_actions = analytics.get("pending_actions", analytics.get("pending", 0))
+
+            schedule = await client.get_upcoming_actions()
+            items = schedule.get("items", schedule.get("actions", []))
+            overdue = [i for i in items if i.get("overdue")]
+            overdue_reviews = len(overdue)
+            approaching_deadlines = [
+                i.get("title", "Untitled")[:80] for i in items if i.get("approaching")
+            ][:5]
+            clarity_available = True
+    except Exception:
+        pass  # Clarity offline or not configured — brief still works
+
     return MorningBriefResponse(
         new_errors_24h=new_errors,
         new_vulns_24h=new_vulns,
         actioned_yesterday=actioned_yesterday,
         pending_total=pending_total,
         top_severity=top_severity,
+        overdue_reviews=overdue_reviews,
+        pending_email_actions=pending_email_actions,
+        approaching_deadlines=approaching_deadlines,
+        clarity_available=clarity_available,
     )

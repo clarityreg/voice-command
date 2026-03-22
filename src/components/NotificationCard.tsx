@@ -21,11 +21,14 @@ interface NotificationCardProps {
   isSelected: boolean;
   onSelect: (id: string) => void;
   onArchive: (id: string) => void;
+  onActioned?: (id: string) => void;
 }
 
-export default function NotificationCard({ notification, isSelected, onSelect, onArchive }: NotificationCardProps) {
+export default function NotificationCard({ notification, isSelected, onSelect, onArchive, onActioned }: NotificationCardProps) {
   const config = SOURCE_CONFIG[notification.source];
   const isUnread = notification.triage_status === "unread";
+  const isActioned = notification.triage_status === "actioned";
+  const isEmail = notification.source === "gmail" || notification.source === "outlook";
 
   return (
     <div
@@ -52,8 +55,9 @@ export default function NotificationCard({ notification, isSelected, onSelect, o
         </div>
 
         {/* Title */}
-        <div className={`flex items-center gap-1.5 text-sm leading-snug ${isUnread ? "font-bold text-bark" : "font-medium text-bark-muted"}`}>
-          {(notification.priority === "urgent" || notification.priority === "high") && (
+        <div className={`flex items-center gap-1.5 text-sm leading-snug ${isActioned ? "font-medium text-bark-light" : isUnread ? "font-bold text-bark" : "font-medium text-bark-muted"}`}>
+          {isActioned && <span className="h-3 w-3 flex-shrink-0 text-green-600">✓</span>}
+          {!isActioned && (notification.priority === "urgent" || notification.priority === "high") && (
             <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: PRIORITY_CONFIG[notification.priority].color }} />
           )}
           <span className="truncate">{notification.title}</span>
@@ -87,13 +91,23 @@ export default function NotificationCard({ notification, isSelected, onSelect, o
         )}
       </div>
 
-      {/* Quick archive */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onArchive(notification.id); }}
-        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-accent/20 px-2 py-1 text-xs font-medium text-accent opacity-0 transition group-hover:opacity-100"
-      >
-        Archive
-      </button>
+      {/* Quick actions */}
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 transition group-hover:opacity-100">
+        {isEmail && !isActioned && onActioned && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onActioned(notification.id); }}
+            className="rounded-lg bg-green-600/20 px-2 py-1 text-xs font-medium text-green-700"
+          >
+            Actioned
+          </button>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); onArchive(notification.id); }}
+          className="rounded-lg bg-accent/20 px-2 py-1 text-xs font-medium text-accent"
+        >
+          Archive
+        </button>
+      </div>
     </div>
   );
 }

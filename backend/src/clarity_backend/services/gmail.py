@@ -21,6 +21,7 @@ class GmailService(BaseService):
         self._gmail_client = None
         self._last_history_id: str | None = None
         self._seen_ids: set[str] = set()
+        self._actioned_label_id: str | None = None
         self._poll_interval = 30
 
     async def connect(self) -> bool:
@@ -70,10 +71,12 @@ class GmailService(BaseService):
         try:
             results = await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: self._gmail_client.users()
-                .messages()
-                .list(userId="me", maxResults=limit, q="is:inbox")
-                .execute(),
+                lambda: (
+                    self._gmail_client.users()
+                    .messages()
+                    .list(userId="me", maxResults=limit, q="is:inbox")
+                    .execute()
+                ),
             )
             for msg_ref in results.get("messages", []):
                 msg_id = msg_ref["id"]
@@ -108,14 +111,16 @@ class GmailService(BaseService):
             history_id = self._last_history_id
             results = await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: self._gmail_client.users()
-                .history()
-                .list(
-                    userId="me",
-                    startHistoryId=history_id,
-                    historyTypes=["messageAdded"],
-                )
-                .execute(),
+                lambda: (
+                    self._gmail_client.users()
+                    .history()
+                    .list(
+                        userId="me",
+                        startHistoryId=history_id,
+                        historyTypes=["messageAdded"],
+                    )
+                    .execute()
+                ),
             )
             new_history_id = results.get("historyId")
             if new_history_id:
@@ -139,10 +144,12 @@ class GmailService(BaseService):
     async def _poll_full(self):
         results = await asyncio.get_event_loop().run_in_executor(
             None,
-            lambda: self._gmail_client.users()
-            .messages()
-            .list(userId="me", maxResults=10, q="is:inbox is:unread")
-            .execute(),
+            lambda: (
+                self._gmail_client.users()
+                .messages()
+                .list(userId="me", maxResults=10, q="is:inbox is:unread")
+                .execute()
+            ),
         )
         for msg_ref in results.get("messages", []):
             msg_id = msg_ref["id"]
@@ -162,19 +169,20 @@ class GmailService(BaseService):
         try:
             original = await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: self._gmail_client.users()
-                .messages()
-                .get(
-                    userId="me",
-                    id=source_id,
-                    format="metadata",
-                    metadataHeaders=["Subject", "From", "To", "Message-ID"],
-                )
-                .execute(),
+                lambda: (
+                    self._gmail_client.users()
+                    .messages()
+                    .get(
+                        userId="me",
+                        id=source_id,
+                        format="metadata",
+                        metadataHeaders=["Subject", "From", "To", "Message-ID"],
+                    )
+                    .execute()
+                ),
             )
             headers = {
-                h["name"]: h["value"]
-                for h in original.get("payload", {}).get("headers", [])
+                h["name"]: h["value"] for h in original.get("payload", {}).get("headers", [])
             }
             thread_id = original.get("threadId")
             reply_to = headers.get("From", "")
@@ -189,33 +197,94 @@ class GmailService(BaseService):
             encoded = base64.urlsafe_b64encode(message_body.encode()).decode()
             await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: self._gmail_client.users()
-                .messages()
-                .send(userId="me", body={"raw": encoded, "threadId": thread_id})
-                .execute(),
+                lambda: (
+                    self._gmail_client.users()
+                    .messages()
+                    .send(userId="me", body={"raw": encoded, "threadId": thread_id})
+                    .execute()
+                ),
             )
             return True
         except Exception as e:
             print(f"[Gmail] Reply error: {e}")
             return False
 
+    async def _ensure_actioned_label(self) -> str | None:
+        """Create 'Clarity/Actioned' label if it doesn't exist, return label ID."""
+        if self._actioned_label_id:
+            return self._actioned_label_id
+        if not self._gmail_client:
+            return None
+        try:
+            labels = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self._gmail_client.users().labels().list(userId="me").execute(),
+            )
+            for label in labels.get("labels", []):
+                if label["name"] == "Clarity/Actioned":
+                    self._actioned_label_id = label["id"]
+                    return label["id"]
+            result = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: (
+                    self._gmail_client.users()
+                    .labels()
+                    .create(
+                        userId="me",
+                        body={
+                            "name": "Clarity/Actioned",
+                            "labelListVisibility": "labelShow",
+                            "messageListVisibility": "show",
+                        },
+                    )
+                    .execute()
+                ),
+            )
+            self._actioned_label_id = result["id"]
+            return result["id"]
+        except Exception as e:
+            print(f"[Gmail] Error ensuring actioned label: {e}")
+            return None
+
+    async def add_label(self, message_id: str) -> bool:
+        """Add the 'Clarity/Actioned' label to a Gmail message."""
+        if not self._gmail_client:
+            return False
+        try:
+            label_id = await self._ensure_actioned_label()
+            if not label_id:
+                return False
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: (
+                    self._gmail_client.users()
+                    .messages()
+                    .modify(userId="me", id=message_id, body={"addLabelIds": [label_id]})
+                    .execute()
+                ),
+            )
+            return True
+        except Exception as e:
+            print(f"[Gmail] Error adding label: {e}")
+            return False
+
     async def _message_to_notification(self, message_id: str) -> Notification | None:
         try:
             msg = await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: self._gmail_client.users()
-                .messages()
-                .get(
-                    userId="me",
-                    id=message_id,
-                    format="metadata",
-                    metadataHeaders=["Subject", "From", "Date"],
-                )
-                .execute(),
+                lambda: (
+                    self._gmail_client.users()
+                    .messages()
+                    .get(
+                        userId="me",
+                        id=message_id,
+                        format="metadata",
+                        metadataHeaders=["Subject", "From", "Date"],
+                    )
+                    .execute()
+                ),
             )
-            headers = {
-                h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])
-            }
+            headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
             snippet = msg.get("snippet", "")
             from_header = headers.get("From", "Unknown")
             sender_name = from_header.split("<")[0].strip().strip('"')

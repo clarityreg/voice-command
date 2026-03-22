@@ -4,6 +4,9 @@ import { useVoice } from "./useVoice";
 
 vi.mock("@/lib/api", () => ({
   processVoice: vi.fn(),
+  processAudio: vi.fn(),
+  confirmPlaneAction: vi.fn(),
+  getSettings: vi.fn(() => Promise.reject(new Error("not available"))),
 }));
 
 vi.mock("@/lib/whisper", () => ({
@@ -136,5 +139,46 @@ describe("useVoice", () => {
     });
 
     expect(result.current.state).toBe("listening");
+  });
+
+  it("stops listening on second toggle", async () => {
+    const { result } = renderHook(() => useVoice());
+    await act(async () => {});
+
+    act(() => { result.current.toggle(); });
+    expect(result.current.state).toBe("listening");
+
+    act(() => { result.current.toggle(); });
+    expect(result.current.state).toBe("idle");
+  });
+
+  it("enters listening state via web speech on toggle", async () => {
+    const { result } = renderHook(() => useVoice());
+    await act(async () => {});
+
+    act(() => { result.current.toggle(); });
+    expect(result.current.state).toBe("listening");
+    expect(result.current.sttBackend).toBe("web-speech");
+  });
+
+  it("rejects pending action", async () => {
+    const { result } = renderHook(() => useVoice());
+    await act(async () => {});
+
+    act(() => { result.current.rejectAction(); });
+    expect(result.current.pendingAction).toBeNull();
+    expect(result.current.lastResponse).toBe("Action cancelled.");
+    expect(result.current.state).toBe("idle");
+  });
+
+  it("confirmAction does nothing without pending action", async () => {
+    const { result } = renderHook(() => useVoice());
+    await act(async () => {});
+
+    await act(async () => {
+      await result.current.confirmAction();
+    });
+    // Should not throw, state unchanged
+    expect(result.current.state).toBe("idle");
   });
 });

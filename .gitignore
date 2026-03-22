@@ -17,11 +17,19 @@ backend/.venv/
 backend/clarity.db
 backend/clarity.db-wal
 backend/clarity.db-shm
+backend/command_center.db
+backend/command_center.db-wal
+backend/command_center.db-shm
+backend/*.db
+backend/*.db-wal
+backend/*.db-shm
 backend/.pytest_cache/
+*.tsbuildinfo
 
 # Environment
 .env
 .env.local
+*.env.keys
 prp-secrets.env
 
 # Backup files

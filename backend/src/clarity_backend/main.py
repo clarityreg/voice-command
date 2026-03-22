@@ -11,18 +11,26 @@ from clarity_backend.config import settings
 from clarity_backend.database import init_db
 from clarity_backend.integrations.routes import router as integrations_router
 from clarity_backend.notifications.routes import router as notification_router
+from clarity_backend.plane.routes import router as plane_router
 from clarity_backend.settings.manager import router as settings_router
 from clarity_backend.stats.routes import router as stats_router
 from clarity_backend.triage.routes import router as triage_router
 from clarity_backend.triage.unified import router as unified_triage_router
 from clarity_backend.voice.router import router as voice_router
 from clarity_backend.webhooks.aikido import router as aikido_router
+from clarity_backend.webhooks.clarity import router as clarity_webhook_router
 from clarity_backend.webhooks.posthog import router as posthog_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_db()
+    from clarity_backend.agent.runner import CLAUDE_CLI_AVAILABLE, _CLAUDE_PATH
+
+    if CLAUDE_CLI_AVAILABLE:
+        print(f"[Startup] Claude CLI: {_CLAUDE_PATH}")
+    else:
+        print("[Startup] Claude CLI: not found — agent fix features will be unavailable")
     try:
         from clarity_backend.services.registry import registry
 
@@ -42,8 +50,8 @@ app = FastAPI(title="Clarity Backend", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=settings.CORS_ORIGINS != ["*"],
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=settings.cors_origins_list != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -60,6 +68,8 @@ app.include_router(notification_router)
 app.include_router(auth_router)
 app.include_router(unified_triage_router)
 app.include_router(agent_router)
+app.include_router(plane_router)
+app.include_router(clarity_webhook_router)
 
 
 @app.websocket("/ws")

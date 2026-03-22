@@ -1,11 +1,12 @@
 import type { Notification, TaskCreatePayload, ServiceStatus } from "./notificationTypes";
 import { apiFetch } from "./api";
 
-export function getNotifications(limit = 50, status?: string) {
+export function getNotifications(limit = 50, status?: string, offset = 0) {
   const params = new URLSearchParams();
   params.set("limit", String(limit));
+  params.set("offset", String(offset));
   if (status) params.set("status", status);
-  return apiFetch<{ notifications: Notification[] }>(`/api/notifications?${params}`);
+  return apiFetch<{ notifications: Notification[]; offset: number; has_more: boolean }>(`/api/notifications?${params}`);
 }
 
 export function replyToNotification(
@@ -74,4 +75,22 @@ export function removeGmailAccount(email: string) {
 
 export function removeOutlookAccount(email: string) {
   return apiFetch(`/api/auth/outlook/${encodeURIComponent(email)}`, { method: "DELETE" });
+}
+
+export function actionNotification(notificationId: string) {
+  return apiFetch(`/api/notifications/${notificationId}/action`, {
+    method: "POST",
+    body: JSON.stringify({ notification_id: notificationId, action: "actioned" }),
+  });
+}
+
+export function syncEmails() {
+  return apiFetch<{ synced: number; errors: string[] }>("/api/sync", {
+    method: "POST",
+  });
+}
+
+export function searchNotifications(query: string, limit = 50, offset = 0) {
+  const params = new URLSearchParams({ q: query, limit: String(limit), offset: String(offset) });
+  return apiFetch<{ notifications: Notification[]; query: string }>(`/api/notifications/search?${params}`);
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useVoice } from "@/hooks/useVoice";
 import type { VoiceState } from "@/hooks/useVoice";
+import ConfirmationCard from "@/components/ConfirmationCard";
 
 function WaveformBars({ level }: { level: number }) {
   // 5 bars with different multipliers for visual variety
@@ -69,8 +70,35 @@ const stateConfig: Record<VoiceState, { bg: string; label: string; pulse: boolea
   speaking: { bg: "bg-accent", label: "Speaking...", pulse: false },
 };
 
+/**
+ * Converts a shortcut string like "Cmd+Shift+Space" into a display string
+ * using keyboard glyphs: "⌘⇧Space".
+ */
+function formatShortcut(shortcut: string): string {
+  return shortcut
+    .split("+")
+    .map((part) => {
+      switch (part.trim().toLowerCase()) {
+        case "cmd":
+        case "meta":
+          return "\u2318"; // ⌘
+        case "shift":
+          return "\u21E7"; // ⇧
+        case "alt":
+        case "option":
+          return "\u2325"; // ⌥
+        case "ctrl":
+        case "control":
+          return "\u2303"; // ⌃
+        default:
+          return part.trim();
+      }
+    })
+    .join("");
+}
+
 export default function VoiceCommandArea({ pending }: { pending: number }) {
-  const { state, audioLevel, lastResponse, toggle, dismissResponse } = useVoice();
+  const { state, audioLevel, lastResponse, pendingAction, shortcut, toggle, dismissResponse, confirmAction, rejectAction } = useVoice();
   const config = stateConfig[state];
 
   return (
@@ -98,7 +126,7 @@ export default function VoiceCommandArea({ pending }: { pending: number }) {
         <div className="flex flex-col items-center gap-2">
           {state === "idle" && (
             <p className="text-sm text-bark-muted">
-              Tap to speak or <kbd className="rounded bg-cream-dark px-1.5 py-0.5 text-xs font-mono">⌘⇧Space</kbd>
+              Tap to speak or <kbd className="rounded bg-cream-dark px-1.5 py-0.5 text-xs font-mono">{formatShortcut(shortcut)}</kbd>
             </p>
           )}
           {state === "listening" && (
@@ -143,6 +171,14 @@ export default function VoiceCommandArea({ pending }: { pending: number }) {
           </Link>
         </div>
       </div>
+
+      {pendingAction && (
+        <ConfirmationCard
+          action={pendingAction}
+          onConfirm={confirmAction}
+          onReject={rejectAction}
+        />
+      )}
     </div>
   );
 }
